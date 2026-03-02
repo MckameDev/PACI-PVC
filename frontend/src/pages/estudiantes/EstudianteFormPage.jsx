@@ -37,6 +37,8 @@ export default function EstudianteFormPage() {
     curso_nivel_id: '',
     letra_id: '',
     diagnostico: '',
+    comorbilidad: '',
+    nivel_subtipo: '',
     tipo_nee: 'NEET',
   });
 
@@ -74,6 +76,8 @@ export default function EstudianteFormPage() {
           curso_nivel_id: data.curso_nivel_id || '',
           letra_id: data.letra_id || '',
           diagnostico: data.diagnostico || '',
+          comorbilidad: data.comorbilidad || '',
+          nivel_subtipo: data.nivel_subtipo || '',
           tipo_nee: data.tipo_nee || 'NEET',
         });
       } catch {
@@ -128,6 +132,8 @@ export default function EstudianteFormPage() {
       const payload = { ...form };
       if (!payload.letra_id) delete payload.letra_id;
       if (!payload.diagnostico) delete payload.diagnostico;
+      if (!payload.comorbilidad) delete payload.comorbilidad;
+      if (!payload.nivel_subtipo) delete payload.nivel_subtipo;
 
       if (isEditing) {
         await api.put(`/estudiantes/${id}`, payload);
@@ -251,8 +257,25 @@ export default function EstudianteFormPage() {
             placeholder="Describa el diagnóstico del estudiante..."
             value={form.diagnostico}
             onChange={handleChange('diagnostico')}
-            rows={4}
+            rows={3}
           />
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <Input
+              id="comorbilidad"
+              label="Comorbilidad (Opcional)"
+              placeholder="Ej: TDAH, Dispraxia"
+              value={form.comorbilidad}
+              onChange={handleChange('comorbilidad')}
+            />
+            <Input
+              id="nivel_subtipo"
+              label="Nivel / Subtipo (Opcional)"
+              placeholder="Ej: Grado 1, Apoyo moderado"
+              value={form.nivel_subtipo}
+              onChange={handleChange('nivel_subtipo')}
+            />
+          </div>
 
           {/* Hidden: usuario_id comes from current user */}
           <input type="hidden" value={form.usuario_id} />

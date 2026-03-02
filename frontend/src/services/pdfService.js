@@ -71,9 +71,9 @@ function addIdentificacion(doc, y, paci, pageH, contentW) {
   const col2 = MARGIN + contentW / 2;
 
   doc.setFillColor(...COLORS.light);
-  doc.rect(MARGIN, y, contentW, 42, 'F');
+  doc.rect(MARGIN, y, contentW, 49, 'F');
   doc.setDrawColor(200, 200, 200);
-  doc.rect(MARGIN, y, contentW, 42, 'S');
+  doc.rect(MARGIN, y, contentW, 49, 'S');
 
   doc.setFontSize(8);
   doc.setTextColor(...COLORS.text);
@@ -92,18 +92,21 @@ function addIdentificacion(doc, y, paci, pageH, contentW) {
   labelVal('RUN:', paci.estudiante_rut, col2, y + 6);
 
   labelVal('Curso Oficial:', paci.estudiante_curso, col1, y + 13);
-  labelVal('Diagnóstico:', paci.estudiante_diagnostico, col2, y + 13);
+  labelVal('Tipo NEE:', paci.estudiante_tipo_nee, col2, y + 13);
 
-  labelVal('Tipo NEE:', paci.estudiante_tipo_nee, col1, y + 20);
-  labelVal('Fecha Emisión:', paci.fecha_emision, col2, y + 20);
+  labelVal('Diagnóstico:', paci.estudiante_diagnostico, col1, y + 20);
+  labelVal('Comorbilidad:', paci.estudiante_comorbilidad || 'N/A', col2, y + 20);
 
-  labelVal('Profesional PIE:', (paci.usuario_nombre || '—') + (paci.usuario_rol ? ` (${paci.usuario_rol})` : ''), col1, y + 27);
-  labelVal('Formato:', paci.formato_generado, col2, y + 27);
+  labelVal('Nivel/Subtipo:', paci.estudiante_nivel_subtipo || 'N/A', col1, y + 27);
+  labelVal('Fecha Emisión:', paci.fecha_emision, col2, y + 27);
 
-  labelVal('Establecimiento:', paci.establecimiento_nombre, col1, y + 34);
-  labelVal('PAEC:', paci.aplica_paec ? 'Sí' : 'No', col2, y + 34);
+  labelVal('Profesional PIE:', (paci.usuario_nombre || '—') + (paci.usuario_rol ? ` (${paci.usuario_rol})` : ''), col1, y + 34);
+  labelVal('Formato:', paci.formato_generado, col2, y + 34);
 
-  return y + 48;
+  labelVal('Establecimiento:', paci.establecimiento_nombre, col1, y + 41);
+  labelVal('PAEC:', paci.aplica_paec ? 'Sí' : 'No', col2, y + 41);
+
+  return y + 55;
 }
 
 /* ─────────────────────────────────────────────
