@@ -1,0 +1,25 @@
+{
+    "name": "paci-pvc/backend",
+    "description": "Backend API para sistema de gestion escolar inclusiva PIE",
+    "type": "project",
+    "require": {
+        "php": ">=8.0",
+        "firebase/php-jwt": "^6.10",
+        "ramsey/uuid": "^4.7"
+    },
+    "config": {
+        "audit": {
+            "ignore": {
+                "PKSA-y2cr-5h3j-g3ys": "Acknowledged - only using HS256 symmetric signing"
+            }
+        }
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/"
+        }
+    },
+    "scripts": {
+        "start": "php -S localhost:8080 -t public"
+    }
+}

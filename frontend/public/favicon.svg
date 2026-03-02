@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <rect width="100" height="100" rx="16" fill="#1e3a5f"/>
+  <text x="50" y="38" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="20">PACI</text>
+  <text x="50" y="62" text-anchor="middle" fill="#3b82f6" font-family="Arial, sans-serif" font-weight="bold" font-size="18">PVC</text>
+</svg>
