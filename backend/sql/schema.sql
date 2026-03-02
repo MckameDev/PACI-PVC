@@ -134,6 +134,8 @@ CREATE TABLE estudiantes (
     curso_nivel_id CHAR(36) NOT NULL,
     letra_id CHAR(36) DEFAULT NULL,
     diagnostico TEXT DEFAULT NULL,
+    comorbilidad VARCHAR(255) DEFAULT NULL,
+    nivel_subtipo VARCHAR(100) DEFAULT NULL,
     tipo_nee ENUM('NEET', 'NEEP') NOT NULL,
     vigencia TINYINT(1) NOT NULL DEFAULT 1,
     created_by CHAR(36) DEFAULT NULL,

@@ -81,6 +81,7 @@ class PaciService
     {
         $sql = "SELECT p.*, e.nombre_completo as estudiante_nombre, e.rut as estudiante_rut,
                        e.diagnostico as estudiante_diagnostico, e.tipo_nee as estudiante_tipo_nee,
+                       e.comorbilidad as estudiante_comorbilidad, e.nivel_subtipo as estudiante_nivel_subtipo,
                        cn.nombre as estudiante_curso, cn.valor_numerico as estudiante_curso_valor,
                        est.nombre as establecimiento_nombre, est.region as establecimiento_region,
                        est.comuna as establecimiento_comuna,

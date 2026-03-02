@@ -123,6 +123,8 @@ class EstudianteService
             'curso_nivel_id'     => 'required|uuid',
             'letra_id'           => 'nullable|uuid',
             'diagnostico'        => 'nullable|string',
+            'comorbilidad'       => 'nullable|string|max:255',
+            'nivel_subtipo'      => 'nullable|string|max:100',
             'tipo_nee'           => 'required|in:NEET,NEEP',
         ]);
 
@@ -151,6 +153,8 @@ class EstudianteService
             'curso_nivel_id'     => 'nullable|uuid',
             'letra_id'           => 'nullable|uuid',
             'diagnostico'        => 'nullable|string',
+            'comorbilidad'       => 'nullable|string|max:255',
+            'nivel_subtipo'      => 'nullable|string|max:100',
             'tipo_nee'           => 'nullable|in:NEET,NEEP',
         ]);
 

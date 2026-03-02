@@ -10,6 +10,7 @@ class Estudiante extends BaseModel
     protected bool   $trackHistory = true;
     protected array  $fillable     = [
         'rut', 'nombre_completo', 'usuario_id', 'establecimiento_id',
-        'curso_nivel_id', 'letra_id', 'diagnostico', 'tipo_nee'
+        'curso_nivel_id', 'letra_id', 'diagnostico', 'comorbilidad',
+        'nivel_subtipo', 'tipo_nee'
     ];
 }
