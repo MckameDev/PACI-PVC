@@ -11,6 +11,7 @@ class PaciTrayectoria extends BaseModel
     protected array  $fillable     = [
         'paci_id', 'oa_id', 'nivel_trabajo_id', 'diferencia_calculada',
         'tipo_adecuacion', 'justificacion_tecnica', 'eval_modalidad',
-        'eval_instrumento', 'eval_criterio'
+        'eval_instrumento', 'eval_criterio',
+        'meta_especifica', 'estrategias_dua', 'habilidades', 'seguimiento_registro'
     ];
 }

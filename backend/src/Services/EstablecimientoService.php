@@ -46,6 +46,13 @@ class EstablecimientoService
             Response::error('El codigo de establecimiento ya existe', 409);
         }
 
+        if (!empty($data['codigo'])) {
+            $inactive = $this->model->findInactiveBy('codigo', $data['codigo']);
+            if ($inactive) {
+                return $this->model->restoreAndUpdate($inactive['id'], $data, $userId);
+            }
+        }
+
         return $this->model->create($data, $userId);
     }
 

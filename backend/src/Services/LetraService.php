@@ -44,6 +44,11 @@ class LetraService
             Response::error('La letra ya existe', 409);
         }
 
+        $inactive = $this->model->findInactiveBy('letra', $data['letra']);
+        if ($inactive) {
+            return $this->model->restoreAndUpdate($inactive['id'], $data, $userId);
+        }
+
         return $this->model->create($data, $userId);
     }
 

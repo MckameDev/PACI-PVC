@@ -10,9 +10,10 @@ import Alert from '../../components/ui/Alert';
 import StepIdentificacion from './steps/StepIdentificacion';
 import StepPerfilDua from './steps/StepPerfilDua';
 import StepTrayectoriaOa from './steps/StepTrayectoriaOa';
+import StepPAEC from './steps/StepPAEC';
 import StepResumen from './steps/StepResumen';
 
-const STEPS = ['Identificación', 'Perfil DUA', 'Trayectoria OA', 'Resumen'];
+const STEPS = ['Identificación', 'Perfil DUA', 'Trayectoria OA', 'PAEC', 'Resumen'];
 
 export default function PaciWizardPage() {
   const navigate = useNavigate();
@@ -28,17 +29,31 @@ export default function PaciWizardPage() {
     estudiante_id: '',
     fecha_emision: new Date().toISOString().slice(0, 10),
     formato_generado: 'Compacto',
+    anio_escolar: '',
+    profesor_jefe: '',
+    profesor_asignatura: '',
+    educador_diferencial: '',
     aplica_paec: 0,
     paec_activadores: '',
     paec_estrategias: '',
     paec_desregulacion: '',
+    paec_variables: [],
     perfil_dua: {
       fortalezas: '',
       barreras: '',
+      barreras_personalizadas: '',
+      acceso_curricular: '',
       preferencias_representacion: '',
       preferencias_expresion: '',
       preferencias_motivacion: '',
+      habilidades_base: '',
     },
+    // Matrix ID arrays (v2)
+    fortaleza_ids: [],
+    barrera_ids: [],
+    estrategia_dua_ids: [],
+    acceso_curricular_ids: [],
+    habilidad_base_ids: [],
     trayectoria: [],
   });
 
@@ -124,20 +139,42 @@ export default function PaciWizardPage() {
         estudiante_id: formData.estudiante_id,
         fecha_emision: formData.fecha_emision,
         formato_generado: formData.formato_generado,
+        anio_escolar: formData.anio_escolar || null,
+        profesor_jefe: formData.profesor_jefe || null,
+        profesor_asignatura: formData.profesor_asignatura || null,
+        educador_diferencial: formData.educador_diferencial || null,
         aplica_paec: formData.aplica_paec,
         paec_activadores: formData.paec_activadores || null,
         paec_estrategias: formData.paec_estrategias || null,
         paec_desregulacion: formData.paec_desregulacion || null,
+        paec_variables: (formData.paec_variables || []).map((v, i) => ({
+          tipo: v.tipo,
+          descripcion: v.descripcion || '',
+          estrategia: v.estrategia || '',
+          orden: v.orden ?? (i + 1),
+        })),
         perfil_dua: formData.perfil_dua,
+        // Matrix ID arrays (v2)
+        fortaleza_ids: formData.fortaleza_ids || [],
+        barrera_ids: formData.barrera_ids || [],
+        estrategia_dua_ids: formData.estrategia_dua_ids || [],
+        acceso_curricular_ids: formData.acceso_curricular_ids || [],
+        habilidad_base_ids: formData.habilidad_base_ids || [],
         trayectoria: formData.trayectoria.map((item) => ({
           oa_id: item.oa_id,
           nivel_trabajo_id: item.nivel_trabajo_id,
           diferencia_calculada: item.diferencia_calculada,
           tipo_adecuacion: item.tipo_adecuacion,
           justificacion_tecnica: item.justificacion_tecnica || null,
+          meta_especifica: item.meta_especifica || null,
+          estrategias_dua: item.estrategias_dua || null,
+          habilidades: item.habilidades || null,
+          seguimiento_registro: item.seguimiento_registro || null,
           eval_modalidad: item.eval_modalidad || null,
           eval_instrumento: item.eval_instrumento || null,
           eval_criterio: item.eval_criterio || null,
+          indicadores_seleccionados: item.indicadores_seleccionados || [],
+          adecuacion_oa: item.adecuacion_oa || null,
         })),
       };
 
@@ -200,6 +237,9 @@ export default function PaciWizardPage() {
           <StepTrayectoriaOa data={formData} onChange={handleChange} estudiante={estudiante} />
         )}
         {currentStep === 4 && (
+          <StepPAEC data={formData} onChange={handleChange} />
+        )}
+        {currentStep === 5 && (
           <StepResumen data={formData} estudiante={estudiante} />
         )}
       </div>

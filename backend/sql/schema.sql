@@ -20,13 +20,14 @@ CREATE TABLE users (
     password VARCHAR(255) NOT NULL,
     rol ENUM('Admin', 'Coordinador', 'Docente', 'Especialista') NOT NULL DEFAULT 'Docente',
     limite_estudiantes INT NOT NULL DEFAULT 5,
+    limite_paci INT NOT NULL DEFAULT 50,
     vigencia TINYINT(1) NOT NULL DEFAULT 1,
     created_by CHAR(36) DEFAULT NULL,
     updated_by CHAR(36) DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_users_email (email),
+    INDEX idx_users_email (email),
     INDEX idx_users_vigencia (vigencia),
     INDEX idx_users_rol (rol)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -47,7 +48,7 @@ CREATE TABLE establecimientos (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_establecimientos_codigo (codigo),
+    INDEX idx_establecimientos_codigo (codigo),
     INDEX idx_establecimientos_vigencia (vigencia)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -64,7 +65,7 @@ CREATE TABLE cursos_niveles (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_cursos_niveles_nombre (nombre),
+    INDEX idx_cursos_niveles_nombre (nombre),
     INDEX idx_cursos_niveles_vigencia (vigencia)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -80,7 +81,7 @@ CREATE TABLE letras (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_letras_letra (letra),
+    INDEX idx_letras_letra (letra),
     INDEX idx_letras_vigencia (vigencia)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -97,7 +98,7 @@ CREATE TABLE asignaturas (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_asignaturas_nombre (nombre),
+    INDEX idx_asignaturas_nombre (nombre),
     INDEX idx_asignaturas_vigencia (vigencia)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -152,6 +153,24 @@ CREATE TABLE estudiantes (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+-- TABLA: ejes (Catálogo formal de ejes temáticos por asignatura)
+-- ============================================================
+CREATE TABLE ejes (
+    id CHAR(36) NOT NULL,
+    asignatura_id CHAR(36) NOT NULL,
+    nombre VARCHAR(150) NOT NULL,
+    vigencia TINYINT(1) NOT NULL DEFAULT 1,
+    created_by CHAR(36) DEFAULT NULL,
+    updated_by CHAR(36) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_ejes_asig_nombre (asignatura_id, nombre),
+    INDEX idx_ejes_vigencia (vigencia),
+    CONSTRAINT fk_ejes_asignatura FOREIGN KEY (asignatura_id) REFERENCES asignaturas(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 -- TABLA: oa_db (Objetivos de Aprendizaje)
 -- ============================================================
 CREATE TABLE oa_db (
@@ -160,6 +179,7 @@ CREATE TABLE oa_db (
     asignatura_id CHAR(36) NOT NULL,
     nivel_trabajo_id CHAR(36) NOT NULL,
     eje VARCHAR(100) DEFAULT NULL,
+    eje_id CHAR(36) DEFAULT NULL,
     tipo_oa VARCHAR(50) DEFAULT NULL,
     codigo_oa VARCHAR(50) DEFAULT NULL,
     texto_oa TEXT NOT NULL,
@@ -171,10 +191,12 @@ CREATE TABLE oa_db (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY uk_oa_id_oa (id_oa),
+    INDEX idx_oa_id_oa (id_oa),
     INDEX idx_oa_vigencia (vigencia),
+    INDEX idx_oa_eje_id (eje_id),
     CONSTRAINT fk_oa_asignatura FOREIGN KEY (asignatura_id) REFERENCES asignaturas(id),
-    CONSTRAINT fk_oa_nivel FOREIGN KEY (nivel_trabajo_id) REFERENCES cursos_niveles(id)
+    CONSTRAINT fk_oa_nivel FOREIGN KEY (nivel_trabajo_id) REFERENCES cursos_niveles(id),
+    CONSTRAINT fk_oa_eje FOREIGN KEY (eje_id) REFERENCES ejes(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -225,6 +247,10 @@ CREATE TABLE paci (
     usuario_id CHAR(36) NOT NULL,
     fecha_emision DATE NOT NULL,
     formato_generado ENUM('Compacto', 'Completo', 'Modular') NOT NULL,
+    anio_escolar VARCHAR(20) DEFAULT NULL,
+    profesor_jefe VARCHAR(200) DEFAULT NULL,
+    profesor_asignatura VARCHAR(200) DEFAULT NULL,
+    educador_diferencial VARCHAR(200) DEFAULT NULL,
     aplica_paec TINYINT(1) DEFAULT 0,
     paec_activadores TEXT DEFAULT NULL,
     paec_estrategias TEXT DEFAULT NULL,
@@ -255,6 +281,10 @@ CREATE TABLE paci_trayectoria (
     eval_modalidad TEXT DEFAULT NULL,
     eval_instrumento TEXT DEFAULT NULL,
     eval_criterio TEXT DEFAULT NULL,
+    meta_especifica TEXT DEFAULT NULL,
+    estrategias_dua TEXT DEFAULT NULL,
+    habilidades TEXT DEFAULT NULL,
+    seguimiento_registro TEXT DEFAULT NULL,
     vigencia TINYINT(1) NOT NULL DEFAULT 1,
     created_by CHAR(36) DEFAULT NULL,
     updated_by CHAR(36) DEFAULT NULL,
@@ -275,9 +305,12 @@ CREATE TABLE perfil_dua (
     paci_id CHAR(36) NOT NULL,
     fortalezas TEXT DEFAULT NULL,
     barreras TEXT DEFAULT NULL,
+    barreras_personalizadas TEXT DEFAULT NULL,
+    acceso_curricular TEXT DEFAULT NULL,
     preferencias_representacion TEXT DEFAULT NULL,
     preferencias_expresion TEXT DEFAULT NULL,
     preferencias_motivacion TEXT DEFAULT NULL,
+    habilidades_base TEXT DEFAULT NULL,
     vigencia TINYINT(1) NOT NULL DEFAULT 1,
     created_by CHAR(36) DEFAULT NULL,
     updated_by CHAR(36) DEFAULT NULL,
@@ -286,6 +319,72 @@ CREATE TABLE perfil_dua (
     PRIMARY KEY (id),
     INDEX idx_perfil_dua_vigencia (vigencia),
     CONSTRAINT fk_perfil_dua_paci FOREIGN KEY (paci_id) REFERENCES paci(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- TABLA: adecuaciones_oa (Meta integradora por OA en un PACI)
+-- ============================================================
+CREATE TABLE adecuaciones_oa (
+    id CHAR(36) NOT NULL,
+    paci_id CHAR(36) NOT NULL,
+    trayectoria_id CHAR(36) NOT NULL,
+    meta_integradora TEXT DEFAULT NULL,
+    estrategias TEXT DEFAULT NULL,
+    adecuaciones TEXT DEFAULT NULL,
+    instrumento_evaluacion TEXT DEFAULT NULL,
+    justificacion TEXT DEFAULT NULL,
+    criterios_evaluacion TEXT DEFAULT NULL,
+    observaciones TEXT DEFAULT NULL,
+    vigencia TINYINT(1) NOT NULL DEFAULT 1,
+    created_by CHAR(36) DEFAULT NULL,
+    updated_by CHAR(36) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_adecuaciones_oa_vigencia (vigencia),
+    INDEX idx_adecuaciones_oa_paci (paci_id),
+    CONSTRAINT fk_adecuaciones_oa_paci FOREIGN KEY (paci_id) REFERENCES paci(id),
+    CONSTRAINT fk_adecuaciones_oa_trayectoria FOREIGN KEY (trayectoria_id) REFERENCES paci_trayectoria(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- TABLA: adecuacion_indicadores (Junction: indicadores seleccionados)
+-- ============================================================
+CREATE TABLE adecuacion_indicadores (
+    id CHAR(36) NOT NULL,
+    trayectoria_id CHAR(36) NOT NULL,
+    indicador_id CHAR(36) NOT NULL,
+    vigencia TINYINT(1) NOT NULL DEFAULT 1,
+    created_by CHAR(36) DEFAULT NULL,
+    updated_by CHAR(36) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_adec_ind_trayectoria_indicador (trayectoria_id, indicador_id),
+    INDEX idx_adec_ind_vigencia (vigencia),
+    CONSTRAINT fk_adec_ind_trayectoria FOREIGN KEY (trayectoria_id) REFERENCES paci_trayectoria(id),
+    CONSTRAINT fk_adec_ind_indicador FOREIGN KEY (indicador_id) REFERENCES indicadores_db(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- TABLA: paec_variables (Variables PAEC estructuradas)
+-- ============================================================
+CREATE TABLE paec_variables (
+    id CHAR(36) NOT NULL,
+    paci_id CHAR(36) NOT NULL,
+    tipo ENUM('Activador', 'Estrategia', 'Desregulacion', 'Protocolo') NOT NULL,
+    descripcion TEXT NOT NULL,
+    estrategia TEXT DEFAULT NULL,
+    orden INT DEFAULT 0,
+    vigencia TINYINT(1) NOT NULL DEFAULT 1,
+    created_by CHAR(36) DEFAULT NULL,
+    updated_by CHAR(36) DEFAULT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    INDEX idx_paec_variables_vigencia (vigencia),
+    INDEX idx_paec_variables_paci (paci_id),
+    CONSTRAINT fk_paec_variables_paci FOREIGN KEY (paci_id) REFERENCES paci(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================

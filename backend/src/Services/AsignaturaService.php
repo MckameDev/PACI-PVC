@@ -43,6 +43,12 @@ class AsignaturaService
             Response::error('La asignatura ya existe', 409);
         }
 
+        // Si existe un registro inactivo con el mismo nombre, restaurarlo
+        $inactive = $this->model->findInactiveBy('nombre', $data['nombre']);
+        if ($inactive) {
+            return $this->model->restoreAndUpdate($inactive['id'], $data, $userId);
+        }
+
         return $this->model->create($data, $userId);
     }
 

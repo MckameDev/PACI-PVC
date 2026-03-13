@@ -1,8 +1,13 @@
 import { create } from 'zustand';
 import api from '../api/axios';
 
+const safeParse = (raw) => {
+  if (!raw || raw === 'undefined') return null;
+  try { return JSON.parse(raw); } catch { return null; }
+};
+
 const useAuthStore = create((set, get) => ({
-  user: JSON.parse(localStorage.getItem('user') || 'null'),
+  user: safeParse(localStorage.getItem('user')),
   token: localStorage.getItem('token') || null,
 
   get isAuthenticated() {
@@ -46,7 +51,7 @@ const useAuthStore = create((set, get) => ({
 
   checkAuth: () => {
     const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const user = safeParse(localStorage.getItem('user'));
     if (token && user) {
       set({ token, user });
       return true;

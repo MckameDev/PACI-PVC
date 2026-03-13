@@ -38,6 +38,7 @@ class UserService
             'password'           => 'required|string|min:6|max:255',
             'rol'                => 'required|in:Admin,Coordinador,Docente,Especialista',
             'limite_estudiantes' => 'nullable|integer|min:1',
+            'limite_paci'        => 'nullable|integer|min:1',
         ]);
 
         if (!empty($validator->getErrors())) {
@@ -48,10 +49,20 @@ class UserService
             Response::error('El email ya esta registrado', 409);
         }
 
+        $inactive = $this->model->findInactiveBy('email', $data['email']);
+        if ($inactive) {
+            $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
+            return $this->model->restoreAndUpdate($inactive['id'], $data, $userId);
+        }
+
         $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
 
         if (!isset($data['limite_estudiantes'])) {
             $data['limite_estudiantes'] = 5;
+        }
+
+        if (!isset($data['limite_paci'])) {
+            $data['limite_paci'] = 50;
         }
 
         return $this->model->create($data, $userId);
@@ -65,6 +76,7 @@ class UserService
             'email'              => 'nullable|email|max:150',
             'rol'                => 'nullable|in:Admin,Coordinador,Docente,Especialista',
             'limite_estudiantes' => 'nullable|integer|min:1',
+            'limite_paci'        => 'nullable|integer|min:1',
         ]);
 
         if (!empty($validator->getErrors())) {

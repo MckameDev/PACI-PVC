@@ -256,10 +256,10 @@ export default function EstablecimientosPage() {
             value={formData.codigo}
             onChange={(e) => setFormData({ ...formData, codigo: e.target.value })}
             error={formErrors.codigo}
-            placeholder="Ej: 12345"
+            placeholder="Ej: RBD-12345"
           />
           {!formErrors.codigo && (
-            <p className="text-xs text-slate-400 -mt-2">Solo números (código del Registro de Bases de Datos)</p>
+            <p className="text-xs text-slate-400 -mt-2">Puede contener letras, números, guiones y puntos</p>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select

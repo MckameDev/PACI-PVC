@@ -84,6 +84,40 @@ export default function StepIdentificacion({ data, onChange }) {
             required
           />
         </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Input
+            id="anio_escolar"
+            label="Año Escolar"
+            placeholder="Ej: 2026"
+            value={data.anio_escolar || ''}
+            onChange={(e) => onChange('anio_escolar', e.target.value)}
+          />
+          <Input
+            id="profesor_jefe"
+            label="Profesor/a Jefe"
+            placeholder="Nombre del profesor/a jefe"
+            value={data.profesor_jefe || ''}
+            onChange={(e) => onChange('profesor_jefe', e.target.value)}
+          />
+        </div>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Input
+            id="profesor_asignatura"
+            label="Profesor/a de Asignatura"
+            placeholder="Nombre del profesor/a de asignatura"
+            value={data.profesor_asignatura || ''}
+            onChange={(e) => onChange('profesor_asignatura', e.target.value)}
+          />
+          <Input
+            id="educador_diferencial"
+            label="Educador/a Diferencial"
+            placeholder="Nombre del educador/a diferencial"
+            value={data.educador_diferencial || ''}
+            onChange={(e) => onChange('educador_diferencial', e.target.value)}
+          />
+        </div>
       </Card>
     </div>
   );

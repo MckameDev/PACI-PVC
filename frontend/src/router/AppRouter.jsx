@@ -15,6 +15,7 @@ import EstudianteFormPage from '../pages/estudiantes/EstudianteFormPage';
 import PaciListPage from '../pages/paci/PaciListPage';
 import PaciWizardPage from '../pages/paci/PaciWizardPage';
 import PaciViewPage from '../pages/paci/PaciViewPage';
+import SeguimientoPaciPage from '../pages/paci/SeguimientoPaciPage';
 
 // Datos base (Admin only)
 import AsignaturasPage from '../pages/datos-base/AsignaturasPage';
@@ -23,6 +24,13 @@ import LetrasPage from '../pages/datos-base/LetrasPage';
 import EstablecimientosPage from '../pages/datos-base/EstablecimientosPage';
 import UsersPage from '../pages/datos-base/UsersPage';
 import OaPage from '../pages/datos-base/OaPage';
+import EjesPage from '../pages/datos-base/EjesPage';
+import IndicadoresPage from '../pages/datos-base/IndicadoresPage';
+import EvaluacionesPage from '../pages/datos-base/EvaluacionesPage';
+import ProfesoresPage from '../pages/datos-base/ProfesoresPage';
+import ImportPage from '../pages/datos-base/ImportPage';
+import ChatbotAdminPage from '../pages/datos-base/ChatbotAdminPage';
+import MatricesAdminPage from '../pages/datos-base/MatricesAdminPage';
 
 function PublicRoute({ children }) {
   const token = useAuthStore((s) => s.token);
@@ -60,6 +68,7 @@ export default function AppRouter() {
             <Route path="paci" element={<PaciListPage />} />
             <Route path="paci/nuevo" element={<PaciWizardPage />} />
             <Route path="paci/:id" element={<PaciViewPage />} />
+            <Route path="paci/:id/seguimiento" element={<SeguimientoPaciPage />} />
 
             {/* Datos base — Admin only */}
             <Route element={<AdminRoute />}>
@@ -69,6 +78,13 @@ export default function AppRouter() {
               <Route path="establecimientos" element={<EstablecimientosPage />} />
               <Route path="usuarios" element={<UsersPage />} />
               <Route path="objetivos-aprendizaje" element={<OaPage />} />
+              <Route path="ejes" element={<EjesPage />} />
+              <Route path="indicadores" element={<IndicadoresPage />} />
+              <Route path="evaluaciones" element={<EvaluacionesPage />} />
+              <Route path="profesores" element={<ProfesoresPage />} />
+              <Route path="importar" element={<ImportPage />} />
+              <Route path="chatbot-admin" element={<ChatbotAdminPage />} />
+              <Route path="matrices" element={<MatricesAdminPage />} />
             </Route>
 
             <Route path="*" element={<NotFoundPage />} />

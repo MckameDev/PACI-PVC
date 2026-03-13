@@ -40,20 +40,22 @@ class AuthController
             Response::error('Credenciales invalidas', 401);
         }
 
-        $now     = time();
-        $payload = [
+        $now       = time();
+        $jwtExp    = AppConfig::jwtExpiration();
+        $jwtSecret = AppConfig::jwtSecret();
+        $payload   = [
             'sub' => $user['id'],
             'rol' => $user['rol'],
             'iat' => $now,
-            'exp' => $now + AppConfig::JWT_EXPIRATION,
+            'exp' => $now + $jwtExp,
         ];
 
-        $token = JWT::encode($payload, AppConfig::JWT_SECRET, AppConfig::JWT_ALGORITHM);
+        $token = JWT::encode($payload, $jwtSecret, AppConfig::JWT_ALGORITHM);
 
         Response::success([
             'token'      => $token,
             'token_type' => 'Bearer',
-            'expires_in' => AppConfig::JWT_EXPIRATION,
+            'expires_in' => $jwtExp,
             'user'       => [
                 'id'     => $user['id'],
                 'nombre' => $user['nombre'],

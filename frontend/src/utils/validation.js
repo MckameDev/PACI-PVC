@@ -113,12 +113,12 @@ export function validateEmail(email) {
 }
 
 /**
- * Valida que un código RBD sea numérico (establecimientos)
+ * Valida que un código RBD sea alfanumérico (establecimientos)
  */
 export function validateCodigoRBD(codigo) {
   if (!codigo) return ''; // Es opcional
-  if (!/^\d{1,10}$/.test(codigo.trim())) {
-    return 'El código RBD debe contener solo números (ej: 12345)';
+  if (!/^[a-zA-Z0-9\-_.]+$/.test(codigo.trim())) {
+    return 'El código RBD solo puede contener letras, números, guiones y puntos (ej: RBD-12345)';
   }
   return '';
 }

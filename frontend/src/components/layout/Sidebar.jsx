@@ -12,6 +12,13 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  FileSpreadsheet,
+  Layers,
+  ListChecks,
+  ClipboardCheck,
+  UserCheck,
+  MessageSquare,
+  Grid,
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 
@@ -29,6 +36,13 @@ const adminItems = [
   { to: '/cursos-niveles', icon: GraduationCap, label: 'Cursos/Niveles' },
   { to: '/letras', icon: Type, label: 'Letras' },
   { to: '/objetivos-aprendizaje', icon: GraduationCap, label: 'Objetivos OA' },
+  { to: '/ejes', icon: Layers, label: 'Ejes' },
+  { to: '/indicadores', icon: ListChecks, label: 'Indicadores' },
+  { to: '/evaluaciones', icon: ClipboardCheck, label: 'Evaluaciones' },
+  { to: '/profesores', icon: UserCheck, label: 'Profesores' },
+  { to: '/importar', icon: FileSpreadsheet, label: 'Importar Excel' },
+  { to: '/chatbot-admin', icon: MessageSquare, label: 'Chatbot Admin' },
+  { to: '/matrices', icon: Grid, label: 'Matrices Pedagógicas' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {

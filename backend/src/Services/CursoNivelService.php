@@ -43,6 +43,11 @@ class CursoNivelService
             Response::error('El nombre de curso/nivel ya existe', 409);
         }
 
+        $inactive = $this->model->findInactiveBy('nombre', $data['nombre']);
+        if ($inactive) {
+            return $this->model->restoreAndUpdate($inactive['id'], $data, $userId);
+        }
+
         return $this->model->create($data, $userId);
     }
 

@@ -69,44 +69,52 @@ function addIdentificacion(doc, y, paci, pageH, contentW) {
 
   const col1 = MARGIN + 3;
   const col2 = MARGIN + contentW / 2;
-
-  doc.setFillColor(...COLORS.light);
-  doc.rect(MARGIN, y, contentW, 49, 'F');
-  doc.setDrawColor(200, 200, 200);
-  doc.rect(MARGIN, y, contentW, 49, 'S');
+  const LABEL_W = 38;
+  const valMaxW = contentW / 2 - LABEL_W - 5;
+  const LINE_H = 3.5;
+  const ROW_GAP = 3;
+  const PAD_Y = 3;
 
   doc.setFontSize(8);
+
+  const rows = [
+    ['Estudiante:', paci.estudiante_nombre, 'RUN:', paci.estudiante_rut],
+    ['Curso Oficial:', paci.estudiante_curso, 'Tipo NEE:', paci.estudiante_tipo_nee],
+    ['Diagnóstico:', paci.estudiante_diagnostico, 'Comorbilidad:', paci.estudiante_comorbilidad || 'N/A'],
+    ['Nivel/Subtipo:', paci.estudiante_nivel_subtipo || 'N/A', 'Fecha Emisión:', paci.fecha_emision],
+    ['Profesional PIE:', (paci.usuario_nombre || '—') + (paci.usuario_rol ? ` (${paci.usuario_rol})` : ''), 'Formato:', paci.formato_generado],
+    ['Establecimiento:', paci.establecimiento_nombre, 'PAEC:', paci.aplica_paec ? 'Sí' : 'No'],
+  ];
+
+  // Pre-calculate wrapped lines and row heights
+  const processed = rows.map(([l1, v1, l2, v2]) => {
+    const lines1 = doc.splitTextToSize(String(v1 || '—'), valMaxW);
+    const lines2 = doc.splitTextToSize(String(v2 || '—'), valMaxW);
+    const maxLines = Math.max(lines1.length, lines2.length);
+    return { l1, lines1, l2, lines2, h: maxLines * LINE_H + ROW_GAP };
+  });
+
+  const totalH = PAD_Y + processed.reduce((s, r) => s + r.h, 0) + PAD_Y;
+
+  doc.setFillColor(...COLORS.light);
+  doc.rect(MARGIN, y, contentW, totalH, 'F');
+  doc.setDrawColor(200, 200, 200);
+  doc.rect(MARGIN, y, contentW, totalH, 'S');
+
   doc.setTextColor(...COLORS.text);
+  let curY = y + PAD_Y + LINE_H;
 
-  // Fixed label widths to avoid jsPDF version compatibility issues
-  const LABEL_W = 38;
-  const labelVal = (label, value, x, rowY) => {
+  for (const row of processed) {
     doc.setFont('helvetica', 'bold');
-    doc.text(label, x, rowY);
+    doc.text(row.l1, col1, curY);
+    doc.text(row.l2, col2, curY);
     doc.setFont('helvetica', 'normal');
-    const trimmed = String(value || '—').substring(0, 50);
-    doc.text(trimmed, x + LABEL_W, rowY);
-  };
+    row.lines1.forEach((ln, i) => doc.text(ln, col1 + LABEL_W, curY + i * LINE_H));
+    row.lines2.forEach((ln, i) => doc.text(ln, col2 + LABEL_W, curY + i * LINE_H));
+    curY += row.h;
+  }
 
-  labelVal('Estudiante:', paci.estudiante_nombre, col1, y + 6);
-  labelVal('RUN:', paci.estudiante_rut, col2, y + 6);
-
-  labelVal('Curso Oficial:', paci.estudiante_curso, col1, y + 13);
-  labelVal('Tipo NEE:', paci.estudiante_tipo_nee, col2, y + 13);
-
-  labelVal('Diagnóstico:', paci.estudiante_diagnostico, col1, y + 20);
-  labelVal('Comorbilidad:', paci.estudiante_comorbilidad || 'N/A', col2, y + 20);
-
-  labelVal('Nivel/Subtipo:', paci.estudiante_nivel_subtipo || 'N/A', col1, y + 27);
-  labelVal('Fecha Emisión:', paci.fecha_emision, col2, y + 27);
-
-  labelVal('Profesional PIE:', (paci.usuario_nombre || '—') + (paci.usuario_rol ? ` (${paci.usuario_rol})` : ''), col1, y + 34);
-  labelVal('Formato:', paci.formato_generado, col2, y + 34);
-
-  labelVal('Establecimiento:', paci.establecimiento_nombre, col1, y + 41);
-  labelVal('PAEC:', paci.aplica_paec ? 'Sí' : 'No', col2, y + 41);
-
-  return y + 55;
+  return y + totalH + 6;
 }
 
 /* ─────────────────────────────────────────────

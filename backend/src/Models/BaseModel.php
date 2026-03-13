@@ -186,6 +186,39 @@ abstract class BaseModel
         return !$stmt->fetch();
     }
 
+    // Busca un registro INACTIVO (vigencia=0) por un campo único.
+    // Retorna el registro completo o null si no existe.
+    public function findInactiveBy(string $field, mixed $value): ?array
+    {
+        $sql  = "SELECT * FROM {$this->table} WHERE {$field} = :value AND vigencia = 0 LIMIT 1";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([':value' => $value]);
+        $result = $stmt->fetch();
+        return $result ?: null;
+    }
+
+    // Restaura un registro inactivo, actualiza sus datos y lo marca vigente.
+    public function restoreAndUpdate(string $id, array $data, ?string $userId = null): array
+    {
+        $data['updated_by'] = $userId;
+        $data['vigencia']   = 1;
+
+        $allowed = array_merge($this->fillable, ['updated_by', 'vigencia']);
+        $data    = array_intersect_key($data, array_flip($allowed));
+
+        $setClause = implode(', ', array_map(fn($k) => "{$k} = :{$k}", array_keys($data)));
+        $sql  = "UPDATE {$this->table} SET {$setClause} WHERE {$this->primaryKey} = :_id";
+        $stmt = $this->db->prepare($sql);
+
+        foreach ($data as $key => $value) {
+            $stmt->bindValue(":{$key}", $value);
+        }
+        $stmt->bindValue(':_id', $id);
+        $stmt->execute();
+
+        return $this->getById($id) ?? [];
+    }
+
     // Registra cambios en historial_modificaciones
     protected function registerHistory(string $registroId, array $before, array $after, string $action, ?string $userId): void
     {

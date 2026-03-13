@@ -35,7 +35,7 @@ class AuthMiddleware
         $token = substr($header, 7);
 
         try {
-            $decoded = JWT::decode($token, new Key(AppConfig::JWT_SECRET, AppConfig::JWT_ALGORITHM));
+            $decoded = JWT::decode($token, new Key(AppConfig::jwtSecret(), AppConfig::JWT_ALGORITHM));
             self::$currentUser = $decoded;
         } catch (ExpiredException $e) {
             Response::error('Token expirado', 401);

@@ -11,29 +11,32 @@ class Database
 {
     private static ?PDO $instance = null;
 
-    private const HOST = 'localhost';
-    private const PORT = '3306';
-    private const DB_NAME = 'PACI_PVC';
-    private const USERNAME = 'root';
-    private const PASSWORD = '';
-    private const CHARSET = 'utf8mb4';
-
     private function __construct() {}
     private function __clone() {}
 
     public static function getInstance(): PDO
     {
         if (self::$instance === null) {
+            // Cargar variables de entorno
+            Env::load();
+
+            $host    = Env::get('DB_HOST', 'localhost');
+            $port    = Env::get('DB_PORT', '3306');
+            $dbName  = Env::get('DB_NAME', 'PACI_PVC');
+            $user    = Env::get('DB_USER', 'root');
+            $pass    = Env::get('DB_PASS', '');
+            $charset = 'utf8mb4';
+
             try {
                 $dsn = sprintf(
                     'mysql:host=%s;port=%s;dbname=%s;charset=%s',
-                    self::HOST,
-                    self::PORT,
-                    self::DB_NAME,
-                    self::CHARSET
+                    $host,
+                    $port,
+                    $dbName,
+                    $charset
                 );
 
-                self::$instance = new PDO($dsn, self::USERNAME, self::PASSWORD, [
+                self::$instance = new PDO($dsn, $user, $pass, [
                     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES   => false,

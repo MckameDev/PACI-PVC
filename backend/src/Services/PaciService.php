@@ -105,12 +105,58 @@ class PaciService
                     WHERE pt.paci_id = :paci_id AND pt.vigencia = 1";
         $stmtTray = $this->db->prepare($sqlTray);
         $stmtTray->execute([':paci_id' => $id]);
-        $paci['trayectoria'] = $stmtTray->fetchAll();
+        $trayectoria = $stmtTray->fetchAll();
+
+        // Load indicadores seleccionados and adecuaciones_oa for each trayectoria item
+        foreach ($trayectoria as &$tray) {
+            // Indicadores seleccionados
+            $sqlInd = "SELECT ai.id, ai.indicador_id, ind.nivel_desempeno, ind.texto_indicador
+                       FROM adecuacion_indicadores ai
+                       LEFT JOIN indicadores_db ind ON ind.id = ai.indicador_id
+                       WHERE ai.trayectoria_id = :tray_id AND ai.vigencia = 1";
+            $stmtInd = $this->db->prepare($sqlInd);
+            $stmtInd->execute([':tray_id' => $tray['id']]);
+            $tray['indicadores_seleccionados'] = $stmtInd->fetchAll();
+
+            // Adecuación OA (meta integradora)
+            $sqlAdec = "SELECT * FROM adecuaciones_oa WHERE trayectoria_id = :tray_id AND vigencia = 1 LIMIT 1";
+            $stmtAdec = $this->db->prepare($sqlAdec);
+            $stmtAdec->execute([':tray_id' => $tray['id']]);
+            $tray['adecuacion_oa'] = $stmtAdec->fetch() ?: null;
+        }
+        unset($tray);
+
+        $paci['trayectoria'] = $trayectoria;
 
         $sqlDua = "SELECT * FROM perfil_dua WHERE paci_id = :paci_id AND vigencia = 1 LIMIT 1";
         $stmtDua = $this->db->prepare($sqlDua);
         $stmtDua->execute([':paci_id' => $id]);
         $paci['perfil_dua'] = $stmtDua->fetch() ?: null;
+
+        // Matrices pedagógicas (junction tables v2)
+        $matrixTables = [
+            'fortalezas'       => ['junction' => 'paci_fortalezas',       'catalog' => 'matriz_fortalezas',       'fk' => 'fortaleza_id'],
+            'barreras'         => ['junction' => 'paci_barreras',         'catalog' => 'matriz_barreras',         'fk' => 'barrera_id'],
+            'estrategias_dua'  => ['junction' => 'paci_estrategias_dua',  'catalog' => 'matriz_estrategias_dua',  'fk' => 'estrategia_id'],
+            'acceso_curricular'=> ['junction' => 'paci_acceso_curricular','catalog' => 'matriz_acceso_curricular','fk' => 'acceso_id'],
+            'habilidades_base' => ['junction' => 'paci_habilidades_base', 'catalog' => 'matriz_habilidades_base', 'fk' => 'habilidad_id'],
+        ];
+        foreach ($matrixTables as $key => $cfg) {
+            $sqlMatrix = "SELECT j.id, j.{$cfg['fk']} as matriz_id, c.nombre
+                          FROM {$cfg['junction']} j
+                          INNER JOIN {$cfg['catalog']} c ON c.id = j.{$cfg['fk']}
+                          WHERE j.paci_id = :paci_id
+                          ORDER BY c.orden";
+            $stmtMatrix = $this->db->prepare($sqlMatrix);
+            $stmtMatrix->execute([':paci_id' => $id]);
+            $paci['matrices_' . $key] = $stmtMatrix->fetchAll();
+        }
+
+        // PAEC variables
+        $sqlPaec = "SELECT * FROM paec_variables WHERE paci_id = :paci_id AND vigencia = 1 ORDER BY tipo, orden";
+        $stmtPaec = $this->db->prepare($sqlPaec);
+        $stmtPaec->execute([':paci_id' => $id]);
+        $paci['paec_variables'] = $stmtPaec->fetchAll();
 
         return $paci;
     }
@@ -122,6 +168,10 @@ class PaciService
             'estudiante_id'   => 'required|uuid',
             'fecha_emision'   => 'required|date',
             'formato_generado'=> 'required|in:Compacto,Completo,Modular',
+            'anio_escolar'    => 'nullable|string|max:20',
+            'profesor_jefe'   => 'nullable|string|max:200',
+            'profesor_asignatura' => 'nullable|string|max:200',
+            'educador_diferencial' => 'nullable|string|max:200',
             'aplica_paec'     => 'nullable|boolean',
         ]);
 
@@ -142,9 +192,11 @@ class PaciService
         try {
             $paciId = UUID::generate();
             $sqlPaci = "INSERT INTO paci (id, estudiante_id, usuario_id, fecha_emision, formato_generado,
+                        anio_escolar, profesor_jefe, profesor_asignatura, educador_diferencial,
                         aplica_paec, paec_activadores, paec_estrategias, paec_desregulacion,
                         vigencia, created_by, updated_by)
                         VALUES (:id, :estudiante_id, :usuario_id, :fecha_emision, :formato_generado,
+                        :anio_escolar, :profesor_jefe, :profesor_asignatura, :educador_diferencial,
                         :aplica_paec, :paec_activadores, :paec_estrategias, :paec_desregulacion,
                         1, :created_by, :updated_by)";
 
@@ -155,6 +207,10 @@ class PaciService
                 ':usuario_id'          => $userId,
                 ':fecha_emision'       => $data['fecha_emision'],
                 ':formato_generado'    => $data['formato_generado'],
+                ':anio_escolar'        => $data['anio_escolar'] ?? null,
+                ':profesor_jefe'       => $data['profesor_jefe'] ?? null,
+                ':profesor_asignatura' => $data['profesor_asignatura'] ?? null,
+                ':educador_diferencial'=> $data['educador_diferencial'] ?? null,
                 ':aplica_paec'         => $data['aplica_paec'] ?? 0,
                 ':paec_activadores'    => $data['paec_activadores'] ?? null,
                 ':paec_estrategias'    => $data['paec_estrategias'] ?? null,
@@ -164,11 +220,35 @@ class PaciService
             ]);
 
             if (!empty($data['trayectoria'])) {
-                $this->insertTrayectoria($paciId, $data['trayectoria'], $userId);
+                $trayectoriaIds = $this->insertTrayectoria($paciId, $data['trayectoria'], $userId);
+
+                // Insert adecuacion_indicadores and adecuaciones_oa for each trayectoria
+                foreach ($data['trayectoria'] as $index => $item) {
+                    $trayId = $trayectoriaIds[$index] ?? null;
+                    if (!$trayId) continue;
+
+                    // Indicadores seleccionados
+                    if (!empty($item['indicadores_seleccionados']) && is_array($item['indicadores_seleccionados'])) {
+                        $this->insertAdecuacionIndicadores($trayId, $item['indicadores_seleccionados'], $userId);
+                    }
+
+                    // Adecuación OA (meta integradora)
+                    if (!empty($item['adecuacion_oa']) && is_array($item['adecuacion_oa'])) {
+                        $this->insertAdecuacionOa($paciId, $trayId, $item['adecuacion_oa'], $userId);
+                    }
+                }
             }
 
             if (!empty($data['perfil_dua'])) {
                 $this->insertPerfilDua($paciId, $data['perfil_dua'], $userId);
+            }
+
+            // Junction tables v2 – matrices pedagógicas
+            $this->insertPaciMatrices($paciId, $data, $userId);
+
+            // PAEC variables
+            if (!empty($data['paec_variables']) && is_array($data['paec_variables'])) {
+                $this->insertPaecVariables($paciId, $data['paec_variables'], $userId);
             }
 
             if (!empty($data['expediente_ids'])) {
@@ -192,6 +272,10 @@ class PaciService
         $validator = Validator::make($data, [
             'fecha_emision'      => 'nullable|date',
             'formato_generado'   => 'nullable|in:Compacto,Completo,Modular',
+            'anio_escolar'       => 'nullable|string|max:20',
+            'profesor_jefe'      => 'nullable|string|max:200',
+            'profesor_asignatura'=> 'nullable|string|max:200',
+            'educador_diferencial' => 'nullable|string|max:200',
             'aplica_paec'        => 'nullable|boolean',
             'paec_activadores'   => 'nullable|string',
             'paec_estrategias'   => 'nullable|string',
@@ -211,20 +295,23 @@ class PaciService
         return $this->model->softDelete($id, $userId);
     }
 
-    // Inserta registros de trayectoria (detalle OA) del PACI
-    private function insertTrayectoria(string $paciId, array $items, ?string $userId): void
+    // Inserta registros de trayectoria (detalle OA) del PACI — devuelve array de IDs creados
+    private function insertTrayectoria(string $paciId, array $items, ?string $userId): array
     {
         $sql = "INSERT INTO paci_trayectoria (id, paci_id, oa_id, nivel_trabajo_id,
                 diferencia_calculada, tipo_adecuacion, justificacion_tecnica,
                 eval_modalidad, eval_instrumento, eval_criterio,
+                meta_especifica, estrategias_dua, habilidades, seguimiento_registro,
                 vigencia, created_by, updated_by)
                 VALUES (:id, :paci_id, :oa_id, :nivel_trabajo_id,
                 :diferencia_calculada, :tipo_adecuacion, :justificacion_tecnica,
                 :eval_modalidad, :eval_instrumento, :eval_criterio,
+                :meta_especifica, :estrategias_dua, :habilidades, :seguimiento_registro,
                 1, :created_by, :updated_by)";
 
         $stmt = $this->db->prepare($sql);
 
+        $generatedIds = [];
         foreach ($items as $index => $item) {
             $validator = Validator::make($item, [
                 'oa_id'                 => 'required|uuid',
@@ -251,8 +338,9 @@ class PaciService
                 throw new \RuntimeException("Justificacion tecnica obligatoria para adecuacion Significativa en trayectoria [{$index}]");
             }
 
+            $trayId = UUID::generate();
             $stmt->execute([
-                ':id'                     => UUID::generate(),
+                ':id'                     => $trayId,
                 ':paci_id'                => $paciId,
                 ':oa_id'                  => $item['oa_id'],
                 ':nivel_trabajo_id'       => $item['nivel_trabajo_id'],
@@ -262,21 +350,28 @@ class PaciService
                 ':eval_modalidad'         => $item['eval_modalidad'] ?? null,
                 ':eval_instrumento'       => $item['eval_instrumento'] ?? null,
                 ':eval_criterio'          => $item['eval_criterio'] ?? null,
+                ':meta_especifica'        => $item['meta_especifica'] ?? null,
+                ':estrategias_dua'        => $item['estrategias_dua'] ?? null,
+                ':habilidades'            => $item['habilidades'] ?? null,
+                ':seguimiento_registro'   => $item['seguimiento_registro'] ?? null,
                 ':created_by'             => $userId,
                 ':updated_by'             => $userId,
             ]);
+            $generatedIds[] = $trayId;
         }
+
+        return $generatedIds;
     }
 
     // Inserta el perfil DUA asociado al PACI
     private function insertPerfilDua(string $paciId, array $dua, ?string $userId): void
     {
-        $sql = "INSERT INTO perfil_dua (id, paci_id, fortalezas, barreras,
-                preferencias_representacion, preferencias_expresion, preferencias_motivacion,
-                vigencia, created_by, updated_by)
-                VALUES (:id, :paci_id, :fortalezas, :barreras,
-                :preferencias_representacion, :preferencias_expresion, :preferencias_motivacion,
-                1, :created_by, :updated_by)";
+        $sql = "INSERT INTO perfil_dua (id, paci_id, fortalezas, barreras, barreras_personalizadas,
+                acceso_curricular, preferencias_representacion, preferencias_expresion, preferencias_motivacion,
+                habilidades_base, vigencia, created_by, updated_by)
+                VALUES (:id, :paci_id, :fortalezas, :barreras, :barreras_personalizadas,
+                :acceso_curricular, :preferencias_representacion, :preferencias_expresion, :preferencias_motivacion,
+                :habilidades_base, 1, :created_by, :updated_by)";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -284,9 +379,12 @@ class PaciService
             ':paci_id'                       => $paciId,
             ':fortalezas'                    => $dua['fortalezas'] ?? null,
             ':barreras'                      => $dua['barreras'] ?? null,
+            ':barreras_personalizadas'       => $dua['barreras_personalizadas'] ?? null,
+            ':acceso_curricular'             => $dua['acceso_curricular'] ?? null,
             ':preferencias_representacion'   => $dua['preferencias_representacion'] ?? null,
             ':preferencias_expresion'        => $dua['preferencias_expresion'] ?? null,
             ':preferencias_motivacion'       => $dua['preferencias_motivacion'] ?? null,
+            ':habilidades_base'              => $dua['habilidades_base'] ?? null,
             ':created_by'                    => $userId,
             ':updated_by'                    => $userId,
         ]);
@@ -311,6 +409,104 @@ class PaciService
 
             if ($stmt->rowCount() === 0) {
                 throw new \RuntimeException("Expediente no encontrado o ya inactivo: {$expId}");
+            }
+        }
+    }
+
+    // Inserta indicadores seleccionados para una trayectoria
+    private function insertAdecuacionIndicadores(string $trayectoriaId, array $indicadorIds, ?string $userId): void
+    {
+        $sql = "INSERT INTO adecuacion_indicadores (id, trayectoria_id, indicador_id, vigencia, created_by, updated_by)
+                VALUES (:id, :tray_id, :ind_id, 1, :created_by, :updated_by)";
+        $stmt = $this->db->prepare($sql);
+
+        foreach ($indicadorIds as $indId) {
+            if (!UUID::isValid($indId)) continue;
+            $stmt->execute([
+                ':id'         => UUID::generate(),
+                ':tray_id'    => $trayectoriaId,
+                ':ind_id'     => $indId,
+                ':created_by' => $userId,
+                ':updated_by' => $userId,
+            ]);
+        }
+    }
+
+    // Inserta adecuación OA (meta integradora) para una trayectoria
+    private function insertAdecuacionOa(string $paciId, string $trayectoriaId, array $adec, ?string $userId): void
+    {
+        $sql = "INSERT INTO adecuaciones_oa (id, paci_id, trayectoria_id, meta_integradora, estrategias,
+                adecuaciones, instrumento_evaluacion, justificacion, criterios_evaluacion, observaciones,
+                vigencia, created_by, updated_by)
+                VALUES (:id, :paci_id, :tray_id, :meta, :estrategias, :adec, :instrumento, :justificacion,
+                :criterios, :observaciones, 1, :created_by, :updated_by)";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute([
+            ':id'            => UUID::generate(),
+            ':paci_id'       => $paciId,
+            ':tray_id'       => $trayectoriaId,
+            ':meta'          => $adec['meta_integradora'] ?? null,
+            ':estrategias'   => $adec['estrategias'] ?? null,
+            ':adec'          => $adec['adecuaciones'] ?? null,
+            ':instrumento'   => $adec['instrumento_evaluacion'] ?? null,
+            ':justificacion' => $adec['justificacion'] ?? null,
+            ':criterios'     => $adec['criterios_evaluacion'] ?? null,
+            ':observaciones' => $adec['observaciones'] ?? null,
+            ':created_by'    => $userId,
+            ':updated_by'    => $userId,
+        ]);
+    }
+
+    // Inserta variables PAEC estructuradas
+    private function insertPaecVariables(string $paciId, array $variables, ?string $userId): void
+    {
+        $sql = "INSERT INTO paec_variables (id, paci_id, tipo, descripcion, estrategia, orden, vigencia, created_by, updated_by)
+                VALUES (:id, :paci_id, :tipo, :descripcion, :estrategia, :orden, 1, :created_by, :updated_by)";
+        $stmt = $this->db->prepare($sql);
+
+        foreach ($variables as $index => $var) {
+            $tipo = $var['tipo'] ?? '';
+            if (!in_array($tipo, ['Activador', 'Estrategia', 'Desregulacion', 'Protocolo'])) continue;
+
+            $stmt->execute([
+                ':id'          => UUID::generate(),
+                ':paci_id'     => $paciId,
+                ':tipo'        => $tipo,
+                ':descripcion' => $var['descripcion'] ?? '',
+                ':estrategia'  => $var['estrategia'] ?? null,
+                ':orden'       => $var['orden'] ?? $index,
+                ':created_by'  => $userId,
+                ':updated_by'  => $userId,
+            ]);
+        }
+    }
+
+    // Inserta relaciones N:M entre PACI y matrices pedagógicas (v2)
+    private function insertPaciMatrices(string $paciId, array $data, ?string $userId): void
+    {
+        $mapping = [
+            'fortaleza_ids'        => ['table' => 'paci_fortalezas',       'fk' => 'fortaleza_id'],
+            'barrera_ids'          => ['table' => 'paci_barreras',         'fk' => 'barrera_id'],
+            'estrategia_dua_ids'   => ['table' => 'paci_estrategias_dua',  'fk' => 'estrategia_id'],
+            'acceso_curricular_ids'=> ['table' => 'paci_acceso_curricular','fk' => 'acceso_id'],
+            'habilidad_base_ids'   => ['table' => 'paci_habilidades_base', 'fk' => 'habilidad_id'],
+        ];
+
+        foreach ($mapping as $field => $cfg) {
+            if (empty($data[$field]) || !is_array($data[$field])) continue;
+
+            $sql = "INSERT INTO {$cfg['table']} (id, paci_id, {$cfg['fk']}, created_by)
+                    VALUES (:id, :paci_id, :fk_id, :created_by)";
+            $stmt = $this->db->prepare($sql);
+
+            foreach ($data[$field] as $matrizId) {
+                if (!UUID::isValid($matrizId)) continue;
+                $stmt->execute([
+                    ':id'         => UUID::generate(),
+                    ':paci_id'    => $paciId,
+                    ':fk_id'      => $matrizId,
+                    ':created_by' => $userId,
+                ]);
             }
         }
     }

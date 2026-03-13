@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Download, FileText, AlertTriangle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Download, FileText, AlertTriangle, CheckCircle, ClipboardList } from 'lucide-react';
 import api from '../../api/axios';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
@@ -70,6 +70,20 @@ export default function PaciViewPage() {
 
   const trayectoria = paci.trayectoria || [];
   const dua = paci.perfil_dua || {};
+  const paecVars = paci.paec_variables || [];
+
+  // Helper: render matrix items or fallback to legacy pipe-delimited string
+  const renderMatrixOrPipe = (matrixKey, pipeValue) => {
+    const items = paci[matrixKey];
+    if (items && items.length > 0) {
+      return (
+        <ul className="list-disc list-inside text-sm text-slate-600 space-y-0.5">
+          {items.map((m) => <li key={m.id}>{m.nombre}</li>)}
+        </ul>
+      );
+    }
+    return renderList(pipeValue);
+  };
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -100,6 +114,9 @@ export default function PaciViewPage() {
           <Button onClick={() => handleDownload()} loading={downloading}>
             <Download className="h-4 w-4" /> Descargar PDF
           </Button>
+          <Button variant="outline" onClick={() => navigate(`/paci/${id}/seguimiento`)}>
+            <ClipboardList className="h-4 w-4" /> Seguimiento
+          </Button>
         </div>
       </div>
 
@@ -128,11 +145,16 @@ export default function PaciViewPage() {
           Perfil DUA
         </h3>
         <div className="space-y-3">
-          <div><strong className="text-sm text-slate-700">Fortalezas:</strong>{renderList(dua.fortalezas)}</div>
-          <div><strong className="text-sm text-slate-700">Barreras:</strong>{renderList(dua.barreras)}</div>
-          <div><strong className="text-sm text-slate-700">Representación:</strong>{renderList(dua.preferencias_representacion)}</div>
+          <div><strong className="text-sm text-slate-700">Fortalezas:</strong>{renderMatrixOrPipe('matrices_fortalezas', dua.fortalezas)}</div>
+          <div><strong className="text-sm text-slate-700">Barreras:</strong>{renderMatrixOrPipe('matrices_barreras', dua.barreras)}</div>
+          <div><strong className="text-sm text-slate-700">Acceso Curricular:</strong>{renderMatrixOrPipe('matrices_acceso_curricular', dua.acceso_curricular)}</div>
+          <div><strong className="text-sm text-slate-700">Representación:</strong>{renderMatrixOrPipe('matrices_estrategias_dua', dua.preferencias_representacion)}</div>
           <div><strong className="text-sm text-slate-700">Expresión:</strong>{renderList(dua.preferencias_expresion)}</div>
           <div><strong className="text-sm text-slate-700">Motivación:</strong>{renderList(dua.preferencias_motivacion)}</div>
+          <div><strong className="text-sm text-slate-700">Habilidades Base:</strong>{renderMatrixOrPipe('matrices_habilidades_base', dua.habilidades_base)}</div>
+          {dua.barreras_personalizadas && (
+            <div><strong className="text-sm text-slate-700">Barreras Personalizadas:</strong><p className="text-sm text-slate-600 mt-1">{dua.barreras_personalizadas}</p></div>
+          )}
         </div>
       </Card>
 
@@ -147,6 +169,25 @@ export default function PaciViewPage() {
             <div><strong className="text-slate-700">Estrategias:</strong><p className="text-slate-600 mt-1">{paci.paec_estrategias || '—'}</p></div>
             <div><strong className="text-slate-700">Protocolo de Desregulación:</strong><p className="text-slate-600 mt-1">{paci.paec_desregulacion || '—'}</p></div>
           </div>
+          {paecVars.length > 0 && (
+            <div className="border-t border-warning/30 pt-3 space-y-2">
+              <strong className="text-sm text-slate-700">Variables PAEC Estructuradas:</strong>
+              {['Activador', 'Estrategia', 'Desregulacion', 'Protocolo'].map((tipo) => {
+                const vars = paecVars.filter((v) => v.tipo === tipo);
+                if (vars.length === 0) return null;
+                return (
+                  <div key={tipo} className="ml-2">
+                    <span className="text-xs font-medium text-slate-500 uppercase">{tipo}:</span>
+                    <ul className="list-disc list-inside text-sm text-slate-600 space-y-0.5 ml-2">
+                      {vars.map((v) => (
+                        <li key={v.id}>{v.descripcion}{v.estrategia ? ` → ${v.estrategia}` : ''}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       ) : null}
 
@@ -203,6 +244,34 @@ export default function PaciViewPage() {
                       )}
                       {item.eval_criterio && (
                         <div><strong className="text-slate-700">Criterio de Logro:</strong> <span className="text-slate-600">{item.eval_criterio}</span></div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Indicadores seleccionados */}
+                  {item.indicadores_seleccionados?.length > 0 && (
+                    <div className="border-t border-slate-200 pt-3">
+                      <strong className="text-xs text-slate-500 uppercase">Indicadores seleccionados:</strong>
+                      <ul className="list-disc list-inside text-sm text-slate-600 space-y-0.5 mt-1">
+                        {item.indicadores_seleccionados.map((ind) => (
+                          <li key={ind.id}>{ind.texto_indicador} <Badge color="secondary" className="text-xs">{ind.nivel_desempeno}</Badge></li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Meta integradora (adecuación OA) */}
+                  {item.adecuacion_oa && (
+                    <div className="border-t border-slate-200 pt-3 space-y-1.5 text-sm">
+                      <strong className="text-xs text-slate-500 uppercase">Meta Integradora / OA Adaptado:</strong>
+                      {item.adecuacion_oa.meta_integradora && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Meta:</strong> {item.adecuacion_oa.meta_integradora}</p>
+                      )}
+                      {item.adecuacion_oa.estrategias && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Estrategias:</strong> {item.adecuacion_oa.estrategias}</p>
+                      )}
+                      {item.adecuacion_oa.criterios_evaluacion && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Criterios:</strong> {item.adecuacion_oa.criterios_evaluacion}</p>
                       )}
                     </div>
                   )}

@@ -43,6 +43,10 @@ class OaService
             $where[]             = 'o.tipo_oa = :tipo_oa';
             $params[':tipo_oa']  = $filters['tipo_oa'];
         }
+        if (!empty($filters['eje'])) {
+            $where[]          = 'o.eje = :eje';
+            $params[':eje']   = $filters['eje'];
+        }
 
         $whereStr = implode(' AND ', $where);
         $offset   = ($page - 1) * $limit;
@@ -99,6 +103,7 @@ class OaService
             'asignatura_id'           => 'required|uuid',
             'nivel_trabajo_id'        => 'required|uuid',
             'eje'                     => 'nullable|string|max:100',
+            'eje_id'                  => 'nullable|uuid',
             'tipo_oa'                 => 'nullable|string|max:50',
             'codigo_oa'               => 'nullable|string|max:50',
             'texto_oa'                => 'required|string',
@@ -112,6 +117,11 @@ class OaService
 
         if (!$this->model->isUnique('id_oa', $data['id_oa'])) {
             Response::error('El codigo id_oa ya existe', 409);
+        }
+
+        $inactive = $this->model->findInactiveBy('id_oa', $data['id_oa']);
+        if ($inactive) {
+            return $this->model->restoreAndUpdate($inactive['id'], $data, $userId);
         }
 
         if (!$this->asignaturaModel->exists($data['asignatura_id'])) {
@@ -132,6 +142,7 @@ class OaService
             'asignatura_id'           => 'nullable|uuid',
             'nivel_trabajo_id'        => 'nullable|uuid',
             'eje'                     => 'nullable|string|max:100',
+            'eje_id'                  => 'nullable|uuid',
             'tipo_oa'                 => 'nullable|string|max:50',
             'codigo_oa'               => 'nullable|string|max:50',
             'texto_oa'                => 'nullable|string',
@@ -153,5 +164,31 @@ class OaService
     public function softDelete(string $id, ?string $userId): bool
     {
         return $this->model->softDelete($id, $userId);
+    }
+
+    // Retorna ejes para una asignatura — prioriza catálogo de ejes, fallback a texto libre en oa_db
+    public function getEjes(string $asignaturaId): array
+    {
+        $db = $this->model->getDb();
+
+        // Primero intentar con catálogo formal de ejes
+        $sqlCat = "SELECT id, nombre as eje FROM ejes
+                   WHERE asignatura_id = :asignatura_id AND vigencia = 1
+                   ORDER BY nombre ASC";
+        $stmtCat = $db->prepare($sqlCat);
+        $stmtCat->execute([':asignatura_id' => $asignaturaId]);
+        $catalogEjes = $stmtCat->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!empty($catalogEjes)) {
+            return $catalogEjes;
+        }
+
+        // Fallback: ejes desde texto libre en oa_db
+        $sql = "SELECT DISTINCT eje FROM oa_db
+                WHERE asignatura_id = :asignatura_id AND eje IS NOT NULL AND eje != '' AND vigencia = 1
+                ORDER BY eje ASC";
+        $stmt = $db->prepare($sql);
+        $stmt->execute([':asignatura_id' => $asignaturaId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }
