@@ -7,6 +7,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Input from '../../components/ui/Input';
 
 export default function LetrasPage() {
@@ -106,9 +107,16 @@ export default function LetrasPage() {
           <h1 className="text-2xl font-bold text-slate-900">Letras de Curso</h1>
           <p className="mt-1 text-sm text-secondary">{total} registros</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nueva Letra
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Letras de Curso"
+            description="Administra las letras de los cursos (A, B, C…) que se combinan con el nivel para formar el curso completo (ej: 8°A). Se utilizan para identificar los cursos específicos de cada estudiante."
+            meaning="Es donde defines las divisiones de un mismo curso, como 8°A, 8°B. Sirve para saber exactamente en qué sala está cada estudiante."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nueva Letra
+          </Button>
+        </div>
       </div>
 
       {alert.message && (

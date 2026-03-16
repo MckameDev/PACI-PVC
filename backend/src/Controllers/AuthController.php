@@ -46,6 +46,7 @@ class AuthController
         $payload   = [
             'sub' => $user['id'],
             'rol' => $user['rol'],
+            'est' => $user['establecimiento_id'] ?? null,
             'iat' => $now,
             'exp' => $now + $jwtExp,
         ];
@@ -57,10 +58,12 @@ class AuthController
             'token_type' => 'Bearer',
             'expires_in' => $jwtExp,
             'user'       => [
-                'id'     => $user['id'],
-                'nombre' => $user['nombre'],
-                'email'  => $user['email'],
-                'rol'    => $user['rol'],
+                'id'                 => $user['id'],
+                'nombre'             => $user['nombre'],
+                'email'              => $user['email'],
+                'rol'                => $user['rol'],
+                'establecimiento_id' => $user['establecimiento_id'] ?? null,
+                'limite_estudiantes' => $user['limite_estudiantes'] ?? 5,
             ],
         ]);
     }

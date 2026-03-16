@@ -8,11 +8,13 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Select from '../../components/ui/Select';
+import Input from '../../components/ui/Input';
 import TextArea from '../../components/ui/TextArea';
 import Badge from '../../components/ui/Badge';
 
-const EMPTY_FORM = { oa_id: '', nivel_desempeno: '', texto_indicador: '' };
+const EMPTY_FORM = { oa_id: '', nivel_desempeno: '', texto_indicador: '', curso: '', eje: '', nivel_logro: '' };
 
 const NIVEL_DESEMP_OPTIONS = [
   { value: 'L', label: 'L — Logrado' },
@@ -21,6 +23,12 @@ const NIVEL_DESEMP_OPTIONS = [
 ];
 
 const NIVEL_COLORS = { L: 'success', ED: 'warning', NL: 'danger' };
+
+const NIVEL_LOGRO_OPTIONS = [
+  { value: 'Inicial', label: 'Inicial' },
+  { value: 'Intermedio', label: 'Intermedio' },
+  { value: 'Avanzado', label: 'Avanzado' },
+];
 
 export default function IndicadoresPage() {
   const [items, setItems] = useState([]);
@@ -127,6 +135,9 @@ export default function IndicadoresPage() {
       oa_id: item.oa_id || '',
       nivel_desempeno: item.nivel_desempeno || '',
       texto_indicador: item.texto_indicador || '',
+      curso: item.curso || '',
+      eje: item.eje || '',
+      nivel_logro: item.nivel_logro || '',
     });
     setFormErrors({});
     setFormModal(true);
@@ -135,7 +146,7 @@ export default function IndicadoresPage() {
   const handleSave = async () => {
     const errors = {};
     if (!formData.oa_id) errors.oa_id = 'El OA es requerido';
-    if (!formData.nivel_desempeno) errors.nivel_desempeno = 'El nivel de desempeño es requerido';
+    if (!formData.nivel_desempeno && !formData.nivel_logro) errors.nivel_desempeno = 'Seleccione nivel de desempeño o nivel de logro';
     if (!formData.texto_indicador.trim()) errors.texto_indicador = 'El texto del indicador es requerido';
     if (Object.keys(errors).length) { setFormErrors(errors); return; }
 
@@ -189,9 +200,16 @@ export default function IndicadoresPage() {
           <h1 className="text-2xl font-bold text-slate-900">Indicadores de Evaluación</h1>
           <p className="mt-1 text-sm text-secondary">{total} registros — Indicadores asociados a OA</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuevo Indicador
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Indicadores de Evaluación"
+            description="Gestiona los indicadores de evaluación asociados a cada OA. Los indicadores definen los criterios concretos con los que se evalúa si un estudiante logró el objetivo (Logrado, En Desarrollo, No Logrado o niveles Inicial/Intermedio/Avanzado)."
+            meaning="Son las pistas concretas que te dicen si un estudiante aprendió algo. Por ejemplo: 'lee un texto y responde preguntas correctamente'."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nuevo Indicador
+          </Button>
+        </div>
       </div>
 
       {alert.message && (
@@ -254,7 +272,10 @@ export default function IndicadoresPage() {
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Código OA</th>
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Nivel</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Curso</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Eje</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Nivel Desemp.</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Nivel Logro</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Texto del Indicador</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">Acciones</th>
               </tr>
@@ -263,11 +284,16 @@ export default function IndicadoresPage() {
               {filtered.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 text-slate-600 font-mono text-xs">{item.oa_codigo || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">{item.curso || '—'}</td>
+                  <td className="px-4 py-3 text-slate-600">{item.eje || '—'}</td>
                   <td className="px-4 py-3">
-                    <Badge color={NIVEL_COLORS[item.nivel_desempeno] || 'primary'}>
-                      {item.nivel_desempeno}
-                    </Badge>
+                    {item.nivel_desempeno ? (
+                      <Badge color={NIVEL_COLORS[item.nivel_desempeno] || 'primary'}>
+                        {item.nivel_desempeno}
+                      </Badge>
+                    ) : '—'}
                   </td>
+                  <td className="px-4 py-3 text-slate-600">{item.nivel_logro || '—'}</td>
                   <td className="px-4 py-3 text-slate-900 max-w-md">
                     <p className="line-clamp-2">{item.texto_indicador}</p>
                   </td>
@@ -331,7 +357,7 @@ export default function IndicadoresPage() {
             error={formErrors.oa_id}
           />
           <Select
-            label="Nivel de Desempeño *"
+            label="Nivel de Desempeño (L/ED/NL)"
             id="nivel_desempeno"
             placeholder="Seleccione nivel"
             value={formData.nivel_desempeno}
@@ -339,6 +365,30 @@ export default function IndicadoresPage() {
             options={NIVEL_DESEMP_OPTIONS}
             error={formErrors.nivel_desempeno}
           />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Input
+              label="Curso"
+              id="curso"
+              value={formData.curso}
+              onChange={(e) => setFormData({ ...formData, curso: e.target.value })}
+              placeholder="Ej: 8A, NT1"
+            />
+            <Input
+              label="Eje"
+              id="eje"
+              value={formData.eje}
+              onChange={(e) => setFormData({ ...formData, eje: e.target.value })}
+              placeholder="Ej: Lectura"
+            />
+            <Select
+              label="Nivel de Logro"
+              id="nivel_logro"
+              placeholder="Seleccione..."
+              value={formData.nivel_logro}
+              onChange={(e) => setFormData({ ...formData, nivel_logro: e.target.value })}
+              options={NIVEL_LOGRO_OPTIONS}
+            />
+          </div>
           <TextArea
             label="Texto del Indicador *"
             id="texto_indicador"

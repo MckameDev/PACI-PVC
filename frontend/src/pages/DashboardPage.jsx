@@ -7,6 +7,7 @@ import StatCard from '../components/ui/StatCard';
 import Card from '../components/ui/Card';
 import Badge from '../components/ui/Badge';
 import Spinner from '../components/ui/Spinner';
+import HelpButton from '../components/ui/HelpButton';
 import { generatePaciPdf } from '../services/pdfService';
 
 export default function DashboardPage() {
@@ -78,11 +79,18 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Welcome header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">
-          Bienvenido, {user?.nombre || 'Usuario'}
-        </h1>
-        <p className="mt-1 text-sm text-secondary capitalize">{today}</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Bienvenido, {user?.nombre || 'Usuario'}
+          </h1>
+          <p className="mt-1 text-sm text-secondary capitalize">{today}</p>
+        </div>
+        <HelpButton
+          title="Inicio / Dashboard"
+          description="Muestra un resumen general del estado del sistema: total de estudiantes, PACI activos, próximos vencimientos y alertas. Da una vista rápida del establecimiento para el usuario autenticado."
+          meaning="Es la pantalla de inicio. Te muestra un resumen de todo lo que pasa en el sistema para que sepas rápidamente qué atender."
+        />
       </div>
 
       {/* Stat cards */}

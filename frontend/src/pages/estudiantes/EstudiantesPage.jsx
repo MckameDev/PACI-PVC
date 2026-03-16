@@ -10,6 +10,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 
 export default function EstudiantesPage() {
   const user = useAuthStore((s) => s.user);
@@ -78,12 +79,19 @@ export default function EstudiantesPage() {
             {total} de {limiteEstudiantes} cupos utilizados
           </p>
         </div>
-        <Link to="/estudiantes/nuevo">
-          <Button disabled={cupoLleno}>
-            <Plus className="h-4 w-4" />
-            Registrar Estudiante
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Estudiantes"
+            description="Registra y gestiona los estudiantes del establecimiento. Permite ver el listado, agregar nuevos estudiantes con sus datos personales y familiares, y acceder a su ficha completa incluyendo diagnóstico PIE."
+            meaning="Es la lista de todos los estudiantes del colegio. Desde aquí puedes ver su información, editarla o crear un nuevo PACI para ellos."
+          />
+          <Link to="/estudiantes/nuevo">
+            <Button disabled={cupoLleno}>
+              <Plus className="h-4 w-4" />
+              Registrar Estudiante
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {cupoLleno && (

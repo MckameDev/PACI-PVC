@@ -43,6 +43,7 @@ const adminItems = [
   { to: '/importar', icon: FileSpreadsheet, label: 'Importar Excel' },
   { to: '/chatbot-admin', icon: MessageSquare, label: 'Chatbot Admin' },
   { to: '/matrices', icon: Grid, label: 'Matrices Pedagógicas' },
+  { to: '/core-curricular', icon: Layers, label: 'Core Curricular' },
 ];
 
 export default function Sidebar({ collapsed, onToggle }) {

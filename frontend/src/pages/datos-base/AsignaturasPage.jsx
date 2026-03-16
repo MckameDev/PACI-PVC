@@ -8,6 +8,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Input from '../../components/ui/Input';
 
 const EMPTY_FORM = { nombre: '', codigo: '' };
@@ -123,9 +124,16 @@ export default function AsignaturasPage() {
           <h1 className="text-2xl font-bold text-slate-900">Asignaturas</h1>
           <p className="mt-1 text-sm text-secondary">{total} registros</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nueva Asignatura
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Asignaturas"
+            description="Permite registrar y gestionar las asignaturas del establecimiento, como Lenguaje, Matemáticas o Ciencias. Puedes crear nuevas asignaturas, editarlas y desactivarlas cuando ya no se usen."
+            meaning="Es la lista de materias o ramos que se enseñan en el colegio. Desde aquí agregas o modificas esas materias."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nueva Asignatura
+          </Button>
+        </div>
       </div>
 
       {alert.message && (

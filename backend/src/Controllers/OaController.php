@@ -22,7 +22,7 @@ class OaController
     {
         $page    = (int) ($_GET['page'] ?? 1);
         $limit   = (int) ($_GET['limit'] ?? 50);
-        $filters = array_intersect_key($_GET, array_flip(['asignatura_id', 'nivel_trabajo_id', 'tipo_oa', 'eje']));
+        $filters = array_intersect_key($_GET, array_flip(['asignatura_id', 'nivel_trabajo_id', 'tipo_oa', 'eje', 'ambito', 'nucleo', 'base_de_habilidades', 'fuente']));
         Response::success($this->service->getAll($filters, $page, $limit));
     }
 

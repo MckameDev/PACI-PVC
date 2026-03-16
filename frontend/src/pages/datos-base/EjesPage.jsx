@@ -8,6 +8,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 
@@ -138,9 +139,16 @@ export default function EjesPage() {
           <h1 className="text-2xl font-bold text-slate-900">Ejes</h1>
           <p className="mt-1 text-sm text-secondary">{total} registros — Catálogo de ejes por asignatura</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuevo Eje
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Ejes"
+            description="Administra los ejes temáticos de cada asignatura (ej: Lectura, Escritura, Comunicación Oral en Lenguaje). Los ejes organizan los OA dentro de cada asignatura para facilitar la búsqueda y filtrado."
+            meaning="Son las grandes áreas dentro de una materia. Por ejemplo, en Lenguaje los ejes son Lectura, Escritura y Comunicación Oral. Sirven para organizar mejor los aprendizajes."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nuevo Eje
+          </Button>
+        </div>
       </div>
 
       {alert.message && (

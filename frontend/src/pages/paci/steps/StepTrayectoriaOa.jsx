@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Trash2, AlertTriangle, CheckCircle, Zap, ChevronDown, ChevronUp, Target, MessageCircle } from 'lucide-react';
 import api from '../../../api/axios';
-import Select from '../../../components/ui/Select';
+import SearchSelect from '../../../components/ui/SearchSelect';
 import TextArea from '../../../components/ui/TextArea';
 import Input from '../../../components/ui/Input';
 import Card from '../../../components/ui/Card';
@@ -21,6 +21,7 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
   const [expandedIndicadores, setExpandedIndicadores] = useState({});
   const [expandedMeta, setExpandedMeta] = useState({});
   const [evalSugerencias, setEvalSugerencias] = useState({});
+  const [coreSugerencias, setCoreSugerencias] = useState({});
 
   const trayectoria = data.trayectoria || [];
 
@@ -129,6 +130,37 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
     }
   }, []);
 
+  // Load core suggestions (estrategias-core, activacion-paci)
+  const loadCoreSugerencias = useCallback(async (index, item) => {
+    const eje = item._eje;
+    const asignatura = asignaturas.find(a => a.id === item._asignatura_id)?.nombre || '';
+    const requests = [];
+
+    if (asignatura && eje) {
+      requests.push(
+        api.get('/estrategias-core', { params: { asignatura, eje, limit: 10 } }).catch(() => ({ data: { data: { items: [] } } })),
+        api.get('/activacion-paci', { params: { eje, limit: 10 } }).catch(() => ({ data: { data: { items: [] } } })),
+        api.get('/matriz-adecuaciones', { params: { asignatura, eje, limit: 10 } }).catch(() => ({ data: { data: { items: [] } } }))
+      );
+    }
+
+    if (requests.length === 0) return;
+
+    try {
+      const [estrategiasRes, activacionRes, adecuacionesRes] = await Promise.all(requests);
+      setCoreSugerencias(prev => ({
+        ...prev,
+        [index]: {
+          estrategias: estrategiasRes.data.data?.items || [],
+          activaciones: activacionRes.data.data?.items || [],
+          adecuaciones: adecuacionesRes.data.data?.items || [],
+        },
+      }));
+    } catch {
+      // Silent fail — suggestions are optional
+    }
+  }, [asignaturas]);
+
   const updateItem = (index, field, value) => {
     const newTray = [...trayectoria];
     newTray[index] = { ...newTray[index], [field]: value };
@@ -184,6 +216,8 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
     // When OA changes, load indicadores
     if (field === 'oa_id' && value) {
       loadIndicadores(value);
+      // Load core suggestions (estrategias, activación PACI)
+      loadCoreSugerencias(index, newTray[index]);
     }
 
     onChange('trayectoria', newTray);
@@ -323,33 +357,33 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
 
             {/* Cascada: Asignatura -> Eje -> Nivel -> OA */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <Select
+              <SearchSelect
                 id={`asignatura_${index}`}
                 label="1. Asignatura *"
                 placeholder="Seleccione asignatura"
                 value={item._asignatura_id}
-                onChange={(e) => updateItem(index, '_asignatura_id', e.target.value)}
+                onChange={(val) => updateItem(index, '_asignatura_id', val)}
                 options={asignaturas.map((a) => ({ value: a.id, label: a.nombre }))}
               />
               
-              <Select
+              <SearchSelect
                 id={`eje_${index}`}
                 label="2. Eje (opcional)"
                 placeholder={loadingEjes[index] ? 'Cargando ejes...' : ejesOptions.length === 0 ? 'Sin ejes disponibles' : 'Seleccione eje'}
                 value={item._eje || ''}
-                onChange={(e) => updateItem(index, '_eje', e.target.value)}
+                onChange={(val) => updateItem(index, '_eje', val)}
                 options={ejesOptions.map((e) => ({ value: e.eje || e.nombre, label: e.eje || e.nombre }))}
                 disabled={!item._asignatura_id || loadingEjes[index]}
               />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Select
+              <SearchSelect
                 id={`nivel_${index}`}
                 label="3. Nivel de Trabajo *"
                 placeholder="Seleccione nivel"
                 value={item.nivel_trabajo_id}
-                onChange={(e) => updateItem(index, 'nivel_trabajo_id', e.target.value)}
+                onChange={(val) => updateItem(index, 'nivel_trabajo_id', val)}
                 options={sortedCursos.map((c) => ({
                   value: c.id,
                   label: `${c.nombre} (valor: ${c.valor_numerico})`,
@@ -379,12 +413,12 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
               </div>
             </div>
 
-            <Select
+            <SearchSelect
               id={`oa_${index}`}
               label="4. Objetivo de Aprendizaje *"
               placeholder={loadingOa[index] ? 'Cargando OAs...' : oas.length === 0 ? 'Complete asignatura y nivel primero' : 'Seleccione OA'}
               value={item.oa_id}
-              onChange={(e) => updateItem(index, 'oa_id', e.target.value)}
+              onChange={(val) => updateItem(index, 'oa_id', val)}
               options={oas.map((o) => ({
                 value: o.id,
                 label: `${o.codigo_oa || o.id_oa} — ${o.texto_oa?.substring(0, 80)}...`,
@@ -396,11 +430,19 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
             {selectedOa && (
               <div className="rounded-lg bg-white border border-slate-200 p-3 text-sm space-y-2">
                 <p className="text-slate-600">{selectedOa.texto_oa}</p>
-                <div className="flex gap-4 text-xs text-secondary">
+                <div className="flex flex-wrap gap-4 text-xs text-secondary">
                   {selectedOa.eje && <span>Eje: <strong>{selectedOa.eje}</strong></span>}
                   {selectedOa.habilidad_core && <span>Habilidad: <strong>{selectedOa.habilidad_core}</strong></span>}
                   {selectedOa.tipo_oa && <span>Tipo: <strong>{selectedOa.tipo_oa}</strong></span>}
+                  {selectedOa.ambito && <span>Ámbito: <strong>{selectedOa.ambito}</strong></span>}
+                  {selectedOa.nucleo && <span>Núcleo: <strong>{selectedOa.nucleo}</strong></span>}
+                  {selectedOa.base_de_habilidades && <span>Base Habilidades: <strong>{selectedOa.base_de_habilidades}</strong></span>}
+                  {selectedOa.nivel_logro && <span>Nivel Logro: <strong>{selectedOa.nivel_logro}</strong></span>}
+                  {selectedOa.fuente && <span>Fuente: <strong>{selectedOa.fuente}</strong></span>}
                 </div>
+                {selectedOa.indicador_logro && (
+                  <p className="text-xs text-slate-500 italic">Indicador: {selectedOa.indicador_logro}</p>
+                )}
 
                 {/* Indicadores Seleccionables */}
                 {item.oa_id && (
@@ -562,6 +604,60 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
             {/* Campos Pedagógicos Ampliados */}
             <div className="space-y-3 border-t border-slate-200 pt-4">
               <h5 className="text-sm font-semibold text-slate-900">Pedagogía Ampliada</h5>
+
+              {/* Core Suggestions Panel */}
+              {coreSugerencias[index] && (coreSugerencias[index].estrategias.length > 0 || coreSugerencias[index].activaciones.length > 0 || coreSugerencias[index].adecuaciones.length > 0) && (
+                <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-primary">
+                    <Zap className="h-4 w-4" />
+                    <span className="text-sm font-semibold">Sugerencias del Sistema Core</span>
+                  </div>
+
+                  {coreSugerencias[index].estrategias.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-slate-600 mb-1">Estrategias sugeridas:</p>
+                      <div className="space-y-1">
+                        {coreSugerencias[index].estrategias.slice(0, 5).map((e, i) => (
+                          <div key={i} className="text-xs text-slate-700 bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <strong>{e.estrategia}</strong>
+                            {e.tipo && <span className="text-slate-400 ml-1">({e.tipo})</span>}
+                            {e.recurso_sugerido && <p className="text-slate-500 mt-0.5">Recurso: {e.recurso_sugerido}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {coreSugerencias[index].activaciones.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-slate-600 mb-1">Activación PACI sugerida:</p>
+                      <div className="space-y-1">
+                        {coreSugerencias[index].activaciones.slice(0, 3).map((a, i) => (
+                          <div key={i} className="text-xs text-slate-700 bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <strong>{a.habilidad_detectada}</strong>
+                            {a.estrategia_sugerida && <p className="text-slate-500">Estrategia: {a.estrategia_sugerida}</p>}
+                            {a.actividad_sugerida && <p className="text-slate-500">Actividad: {a.actividad_sugerida}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {coreSugerencias[index].adecuaciones.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-slate-600 mb-1">Adecuaciones sugeridas:</p>
+                      <div className="space-y-1">
+                        {coreSugerencias[index].adecuaciones.slice(0, 3).map((a, i) => (
+                          <div key={i} className="text-xs text-slate-700 bg-white rounded px-2 py-1.5 border border-slate-100">
+                            <strong>{a.tipo_adecuacion}</strong>: {a.descripcion}
+                            {a.ejemplo && <p className="text-slate-500 mt-0.5">Ejemplo: {a.ejemplo}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               
               <TextArea
                 id={`meta_especifica_${index}`}

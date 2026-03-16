@@ -8,6 +8,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import TextArea from '../../components/ui/TextArea';
@@ -165,9 +166,16 @@ export default function EvaluacionesPage() {
           <h1 className="text-2xl font-bold text-slate-900">Evaluaciones</h1>
           <p className="mt-1 text-sm text-secondary">{total} registros — Sugerencias de evaluación diferenciada</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nueva Evaluación
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Evaluaciones"
+            description="Registra instrumentos y modalidades de evaluación diferenciada para estudiantes con adecuaciones curriculares. Incluye criterios de logro, modalidad sugerida e instrumento de evaluación."
+            meaning="Es donde se guardan las formas especiales de evaluar a estudiantes con PACI, como hacer una prueba oral en vez de escrita."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nueva Evaluación
+          </Button>
+        </div>
       </div>
 
       {alert.message && (

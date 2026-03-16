@@ -40,6 +40,17 @@ use App\Controllers\MatrizEstrategiaEscrituraController;
 use App\Controllers\MatrizEstrategiaComunicacionController;
 use App\Controllers\MatrizHerramientaApoyoController;
 use App\Controllers\ChatbotController;
+use App\Controllers\HabilidadLenguajeController;
+use App\Controllers\ActivacionPaciController;
+use App\Controllers\CoreLecturaController;
+use App\Controllers\CoreEscrituraController;
+use App\Controllers\CoreComunicacionOralController;
+use App\Controllers\MatrizProgresionController;
+use App\Controllers\EstrategiaCoreController;
+use App\Controllers\DiagnosticoCoreController;
+use App\Controllers\ProgresionLectoraController;
+use App\Controllers\MatrizAdecuacionController;
+use App\Controllers\ProgresionCurricularController;
 
 date_default_timezone_set(AppConfig::APP_TIMEZONE);
 
@@ -221,6 +232,20 @@ $router->post('/api/import/estrategias-comunicacion', [ImportController::class, 
 $router->post('/api/import/herramientas-apoyo', [ImportController::class, 'importHerramientasApoyo'], true);
 
 // -----------------------------------------------------------
+// Import: Tablas Core v7 (10 endpoints)
+// -----------------------------------------------------------
+$router->post('/api/import/habilidades-lenguaje', [ImportController::class, 'importHabilidadesLenguaje'], true);
+$router->post('/api/import/activacion-paci', [ImportController::class, 'importActivacionPaci'], true);
+$router->post('/api/import/core-lectura', [ImportController::class, 'importCoreLectura'], true);
+$router->post('/api/import/core-escritura', [ImportController::class, 'importCoreEscritura'], true);
+$router->post('/api/import/core-comunicacion-oral', [ImportController::class, 'importCoreComunicacionOral'], true);
+$router->post('/api/import/matriz-progresion', [ImportController::class, 'importMatrizProgresion'], true);
+$router->post('/api/import/estrategias-core', [ImportController::class, 'importEstrategiasCore'], true);
+$router->post('/api/import/progresion-lectora', [ImportController::class, 'importProgresionLectora'], true);
+$router->post('/api/import/matriz-adecuaciones', [ImportController::class, 'importMatrizAdecuaciones'], true);
+$router->post('/api/import/progresion-curricular', [ImportController::class, 'importProgresionCurricular'], true);
+
+// -----------------------------------------------------------
 // Rutas protegidas: Historial de Modificaciones
 // -----------------------------------------------------------
 $router->get('/api/historial/registro/{id}', [HistorialController::class, 'byRegistro'], true);
@@ -344,6 +369,75 @@ $router->get('/api/admin/chatbot/opciones/{id}', [ChatbotController::class, 'sho
 $router->post('/api/admin/chatbot/opciones', [ChatbotController::class, 'storeOpcion'], true);
 $router->put('/api/admin/chatbot/opciones/{id}', [ChatbotController::class, 'updateOpcion'], true);
 $router->patch('/api/admin/chatbot/opciones/{id}', [ChatbotController::class, 'toggleOpcion'], true);
+
+// -----------------------------------------------------------
+// Rutas protegidas: Tablas Core v7 (11 catálogos)
+// -----------------------------------------------------------
+$router->get('/api/habilidades-lenguaje', [HabilidadLenguajeController::class, 'index'], true);
+$router->get('/api/habilidades-lenguaje/{id}', [HabilidadLenguajeController::class, 'show'], true);
+$router->post('/api/habilidades-lenguaje', [HabilidadLenguajeController::class, 'store'], true);
+$router->put('/api/habilidades-lenguaje/{id}', [HabilidadLenguajeController::class, 'update'], true);
+$router->patch('/api/habilidades-lenguaje/{id}', [HabilidadLenguajeController::class, 'toggleVigencia'], true);
+
+$router->get('/api/activacion-paci', [ActivacionPaciController::class, 'index'], true);
+$router->get('/api/activacion-paci/{id}', [ActivacionPaciController::class, 'show'], true);
+$router->post('/api/activacion-paci', [ActivacionPaciController::class, 'store'], true);
+$router->put('/api/activacion-paci/{id}', [ActivacionPaciController::class, 'update'], true);
+$router->patch('/api/activacion-paci/{id}', [ActivacionPaciController::class, 'toggleVigencia'], true);
+
+$router->get('/api/core-lectura', [CoreLecturaController::class, 'index'], true);
+$router->get('/api/core-lectura/{id}', [CoreLecturaController::class, 'show'], true);
+$router->post('/api/core-lectura', [CoreLecturaController::class, 'store'], true);
+$router->put('/api/core-lectura/{id}', [CoreLecturaController::class, 'update'], true);
+$router->patch('/api/core-lectura/{id}', [CoreLecturaController::class, 'toggleVigencia'], true);
+
+$router->get('/api/core-escritura', [CoreEscrituraController::class, 'index'], true);
+$router->get('/api/core-escritura/{id}', [CoreEscrituraController::class, 'show'], true);
+$router->post('/api/core-escritura', [CoreEscrituraController::class, 'store'], true);
+$router->put('/api/core-escritura/{id}', [CoreEscrituraController::class, 'update'], true);
+$router->patch('/api/core-escritura/{id}', [CoreEscrituraController::class, 'toggleVigencia'], true);
+
+$router->get('/api/core-comunicacion-oral', [CoreComunicacionOralController::class, 'index'], true);
+$router->get('/api/core-comunicacion-oral/{id}', [CoreComunicacionOralController::class, 'show'], true);
+$router->post('/api/core-comunicacion-oral', [CoreComunicacionOralController::class, 'store'], true);
+$router->put('/api/core-comunicacion-oral/{id}', [CoreComunicacionOralController::class, 'update'], true);
+$router->patch('/api/core-comunicacion-oral/{id}', [CoreComunicacionOralController::class, 'toggleVigencia'], true);
+
+$router->get('/api/matriz-progresion', [MatrizProgresionController::class, 'index'], true);
+$router->get('/api/matriz-progresion/{id}', [MatrizProgresionController::class, 'show'], true);
+$router->post('/api/matriz-progresion', [MatrizProgresionController::class, 'store'], true);
+$router->put('/api/matriz-progresion/{id}', [MatrizProgresionController::class, 'update'], true);
+$router->patch('/api/matriz-progresion/{id}', [MatrizProgresionController::class, 'toggleVigencia'], true);
+
+$router->get('/api/estrategias-core', [EstrategiaCoreController::class, 'index'], true);
+$router->get('/api/estrategias-core/{id}', [EstrategiaCoreController::class, 'show'], true);
+$router->post('/api/estrategias-core', [EstrategiaCoreController::class, 'store'], true);
+$router->put('/api/estrategias-core/{id}', [EstrategiaCoreController::class, 'update'], true);
+$router->patch('/api/estrategias-core/{id}', [EstrategiaCoreController::class, 'toggleVigencia'], true);
+
+$router->get('/api/diagnostico-core', [DiagnosticoCoreController::class, 'index'], true);
+$router->get('/api/diagnostico-core/{id}', [DiagnosticoCoreController::class, 'show'], true);
+$router->post('/api/diagnostico-core', [DiagnosticoCoreController::class, 'store'], true);
+$router->put('/api/diagnostico-core/{id}', [DiagnosticoCoreController::class, 'update'], true);
+$router->patch('/api/diagnostico-core/{id}', [DiagnosticoCoreController::class, 'toggleVigencia'], true);
+
+$router->get('/api/progresion-lectora', [ProgresionLectoraController::class, 'index'], true);
+$router->get('/api/progresion-lectora/{id}', [ProgresionLectoraController::class, 'show'], true);
+$router->post('/api/progresion-lectora', [ProgresionLectoraController::class, 'store'], true);
+$router->put('/api/progresion-lectora/{id}', [ProgresionLectoraController::class, 'update'], true);
+$router->patch('/api/progresion-lectora/{id}', [ProgresionLectoraController::class, 'toggleVigencia'], true);
+
+$router->get('/api/matriz-adecuaciones', [MatrizAdecuacionController::class, 'index'], true);
+$router->get('/api/matriz-adecuaciones/{id}', [MatrizAdecuacionController::class, 'show'], true);
+$router->post('/api/matriz-adecuaciones', [MatrizAdecuacionController::class, 'store'], true);
+$router->put('/api/matriz-adecuaciones/{id}', [MatrizAdecuacionController::class, 'update'], true);
+$router->patch('/api/matriz-adecuaciones/{id}', [MatrizAdecuacionController::class, 'toggleVigencia'], true);
+
+$router->get('/api/progresion-curricular', [ProgresionCurricularController::class, 'index'], true);
+$router->get('/api/progresion-curricular/{id}', [ProgresionCurricularController::class, 'show'], true);
+$router->post('/api/progresion-curricular', [ProgresionCurricularController::class, 'store'], true);
+$router->put('/api/progresion-curricular/{id}', [ProgresionCurricularController::class, 'update'], true);
+$router->patch('/api/progresion-curricular/{id}', [ProgresionCurricularController::class, 'toggleVigencia'], true);
 
 // -----------------------------------------------------------
 // Despachar la peticion

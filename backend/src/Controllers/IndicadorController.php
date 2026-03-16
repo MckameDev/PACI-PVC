@@ -22,7 +22,7 @@ class IndicadorController
     {
         $page    = (int) ($_GET['page'] ?? 1);
         $limit   = (int) ($_GET['limit'] ?? 50);
-        $filters = array_intersect_key($_GET, array_flip(['oa_id']));
+        $filters = array_intersect_key($_GET, array_flip(['oa_id', 'curso', 'eje', 'nivel_logro']));
         Response::success($this->service->getAll($filters, $page, $limit));
     }
 

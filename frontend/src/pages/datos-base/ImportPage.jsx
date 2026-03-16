@@ -5,6 +5,7 @@ import api from '../../api/axios';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Badge from '../../components/ui/Badge';
 
 const IMPORT_TYPES = [
@@ -12,15 +13,15 @@ const IMPORT_TYPES = [
     key: 'oa',
     label: 'Objetivos de Aprendizaje',
     endpoint: '/import/oa',
-    columns: ['id_oa', 'asignatura_codigo', 'asignatura_nombre', 'nivel_nombre', 'eje', 'descripcion'],
-    description: 'Columnas requeridas: id_oa, asignatura_codigo, asignatura_nombre, nivel_nombre, eje, descripcion',
+    columns: ['nivel', 'asignatura', 'ambito', 'nucleo', 'eje', 'base_de_habilidades', 'id_oa', 'oa_texto', 'tipo_oa', 'nivel_logro', 'indicador_logro', 'fuente'],
+    description: 'Columnas: nivel, asignatura, ambito, nucleo, eje, base_de_habilidades, id_oa (código ej: LVNT-OA01), oa_texto, tipo_oa, nivel_logro, indicador_logro, fuente',
   },
   {
     key: 'indicadores',
     label: 'Indicadores de Evaluación',
     endpoint: '/import/indicadores',
-    columns: ['id_oa', 'texto_indicador', 'nivel_logro'],
-    description: 'Columnas requeridas: id_oa, texto_indicador, nivel_logro (L / ED / NL)',
+    columns: ['id_oa', 'texto_indicador', 'nivel_logro', 'curso', 'eje'],
+    description: 'Columnas: id_oa, texto_indicador, nivel_logro (L/ED/NL ó Inicial/Intermedio/Avanzado), curso, eje',
   },
   {
     key: 'barreras',
@@ -63,6 +64,77 @@ const IMPORT_TYPES = [
     endpoint: '/import/herramientas-apoyo',
     columns: ['codigo', 'nombre', 'proposito_acceso', 'descripcion', 'barrera_mitiga'],
     description: 'Ej: V01, Texto a voz (TTS), Acceso a textos escritos, Descripción..., Dificultad lectora',
+  },
+  // ─── Tablas Core v7 ───
+  {
+    key: 'habilidades_lenguaje',
+    label: 'Habilidades Lenguaje',
+    endpoint: '/import/habilidades-lenguaje',
+    columns: ['nivel', 'eje', 'habilidad', 'descripcion'],
+    description: 'Columnas: nivel, eje, habilidad, descripcion',
+  },
+  {
+    key: 'activacion_paci',
+    label: 'Activación PACI',
+    endpoint: '/import/activacion-paci',
+    columns: ['eje', 'core_nivel', 'id_oa', 'habilidad_detectada', 'estrategia_sugerida', 'actividad_sugerida'],
+    description: 'Columnas: eje, core_nivel, id_oa, habilidad_detectada, estrategia_sugerida, actividad_sugerida',
+  },
+  {
+    key: 'core_lectura',
+    label: 'Core Lectura',
+    endpoint: '/import/core-lectura',
+    columns: ['core_nivel', 'core_habilidad', 'indicador', 'estrategia_sugerida'],
+    description: 'Columnas: core_nivel, core_habilidad, indicador, estrategia_sugerida',
+  },
+  {
+    key: 'core_escritura',
+    label: 'Core Escritura',
+    endpoint: '/import/core-escritura',
+    columns: ['core_nivel', 'core_habilidad', 'indicador', 'estrategia_sugerida'],
+    description: 'Columnas: core_nivel, core_habilidad, indicador, estrategia_sugerida',
+  },
+  {
+    key: 'core_comunicacion_oral',
+    label: 'Core Comunicación Oral',
+    endpoint: '/import/core-comunicacion-oral',
+    columns: ['core_nivel', 'core_habilidad', 'indicador', 'estrategia_sugerida'],
+    description: 'Columnas: core_nivel, core_habilidad, indicador, estrategia_sugerida',
+  },
+  {
+    key: 'matriz_progresion',
+    label: 'Matriz Progresión',
+    endpoint: '/import/matriz-progresion',
+    columns: ['asignatura', 'eje', 'core_nivel', 'habilidad_clave', 'indicador_logro'],
+    description: 'Columnas: asignatura, eje, core_nivel, habilidad_clave, indicador_logro',
+  },
+  {
+    key: 'estrategias_core',
+    label: 'Estrategias Core',
+    endpoint: '/import/estrategias-core',
+    columns: ['asignatura', 'eje', 'core_nivel', 'estrategia', 'tipo', 'recurso_sugerido'],
+    description: 'Columnas: asignatura, eje, core_nivel, estrategia, tipo, recurso_sugerido',
+  },
+  {
+    key: 'progresion_lectora',
+    label: 'Progresión Lectora',
+    endpoint: '/import/progresion-lectora',
+    columns: ['nivel', 'core_nivel', 'descriptor', 'ejemplo_texto', 'criterio_logro'],
+    description: 'Columnas: nivel, core_nivel, descriptor, ejemplo_texto, criterio_logro',
+  },
+  {
+    key: 'matriz_adecuaciones',
+    label: 'Matriz Adecuaciones',
+    endpoint: '/import/matriz-adecuaciones',
+    columns: ['asignatura', 'eje', 'core_nivel', 'tipo_adecuacion', 'descripcion', 'ejemplo'],
+    description: 'Columnas: asignatura, eje, core_nivel, tipo_adecuacion, descripcion, ejemplo',
+  },
+  {
+    key: 'progresion_curricular',
+    label: 'Progresión Curricular',
+    endpoint: '/import/progresion-curricular',
+    columns: ['habilidad', 'nivel_core', 'eje', 'descriptor', 'indicador_logro', 'ejemplo'],
+    description: 'Columnas: habilidad, nivel_core, eje, descriptor, indicador_logro, ejemplo',
   },
 ];
 
@@ -162,14 +234,21 @@ export default function ImportPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Importar Datos desde Excel</h1>
-        <p className="text-sm text-secondary mt-1">
-          Cargue archivos Excel (.xlsx) para importar OA, Indicadores y las 6 Matrices Pedagógicas de forma masiva.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Importar Datos desde Excel</h1>
+          <p className="text-sm text-secondary mt-1">
+            Cargue archivos Excel (.xlsx) para importar OA, Indicadores, Matrices Pedagógicas y Tablas Core de forma masiva.
+          </p>
+        </div>
+        <HelpButton
+          title="Importar Datos"
+          description="Permite importar datos masivos desde archivos Excel (.xlsx). Soporta 18 tipos de importación: OA, Indicadores, Matrices Pedagógicas y Tablas Core. El archivo se procesa en el navegador, se muestra una vista previa y luego se envía al servidor."
+          meaning="Es la herramienta para cargar muchos datos a la vez desde una planilla Excel, en vez de ingresarlos uno por uno."
+        />
       </div>
 
-      {alert.message && <Alert type={alert.type}>{alert.message}</Alert>}
+      {alert.message && <Alert type={alert.type} message={alert.message} onClose={() => setAlert({ type: '', message: '' })} />}
 
       {/* Type Selector */}
       <Card className="space-y-4">
@@ -289,25 +368,40 @@ export default function ImportPage() {
             <h3 className="text-base font-semibold text-slate-900">Resultado de Importación</h3>
           </div>
           <div className="grid gap-3 sm:grid-cols-3 text-sm">
-            {result.insertados != null && (
+            {(result.inserted ?? result.insertados) != null && (
               <div className="rounded-lg bg-success/10 p-3 text-center">
-                <p className="text-2xl font-bold text-success">{result.insertados}</p>
+                <p className="text-2xl font-bold text-success">{result.inserted ?? result.insertados}</p>
                 <p className="text-xs text-secondary">Insertados</p>
               </div>
             )}
-            {result.actualizados != null && (
+            {(result.updated ?? result.actualizados ?? result.skipped) != null && (
               <div className="rounded-lg bg-accent/10 p-3 text-center">
-                <p className="text-2xl font-bold text-accent">{result.actualizados}</p>
-                <p className="text-xs text-secondary">Actualizados</p>
+                <p className="text-2xl font-bold text-accent">{result.updated ?? result.actualizados ?? result.skipped}</p>
+                <p className="text-xs text-secondary">Actualizados / Omitidos</p>
               </div>
             )}
-            {result.errores != null && (
+            {(result.errors?.length ?? result.errores) > 0 && (
               <div className="rounded-lg bg-danger/10 p-3 text-center">
-                <p className="text-2xl font-bold text-danger">{result.errores}</p>
-                <p className="text-xs text-secondary">Errores</p>
+                <p className="text-2xl font-bold text-danger">{result.errors?.length ?? result.errores}</p>
+                <p className="text-xs text-secondary">Filas con error</p>
               </div>
             )}
           </div>
+          {result.errors?.length > 0 && (
+            <details className="mt-2">
+              <summary className="text-xs font-semibold text-danger cursor-pointer">
+                Ver detalle de errores ({result.errors.length})
+              </summary>
+              <ul className="mt-2 max-h-48 overflow-y-auto space-y-1">
+                {result.errors.map((msg, i) => (
+                  <li key={i} className="text-xs text-slate-600 bg-danger/5 rounded px-2 py-1 flex items-start gap-1">
+                    <AlertTriangle className="h-3 w-3 text-danger mt-0.5 shrink-0" />
+                    {msg}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </Card>
       )}
     </div>

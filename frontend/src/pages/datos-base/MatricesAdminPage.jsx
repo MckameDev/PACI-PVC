@@ -3,6 +3,7 @@ import {
   ShieldAlert, Star, BookOpen, PenLine, MessageCircle, Wrench,
 } from 'lucide-react';
 import MatrizPage from './MatrizPage';
+import HelpButton from '../../components/ui/HelpButton';
 
 // ── Matrix configurations ────────────────────────────────────────────────────
 
@@ -148,11 +149,18 @@ export default function MatricesAdminPage() {
   return (
     <div className="space-y-6">
       {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Matrices Pedagógicas</h1>
-        <p className="mt-1 text-sm text-secondary">
-          Gestione los catálogos de barreras, fortalezas y estrategias pedagógicas.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Matrices Pedagógicas</h1>
+          <p className="mt-1 text-sm text-secondary">
+            Gestione los catálogos de barreras, fortalezas y estrategias pedagógicas.
+          </p>
+        </div>
+        <HelpButton
+          title="Matrices Pedagógicas"
+          description="Gestiona los catálogos de matrices pedagógicas: Barreras de Aprendizaje, Fortalezas, Estrategias de Lectura, Escritura, Comunicación Oral y Herramientas de Apoyo. Estos catálogos se usan en la elaboración de los PACI."
+          meaning="Es el banco de herramientas pedagógicas del sistema: las barreras que puede tener un estudiante, sus fortalezas y las estrategias que el profesor puede usar."
+        />
       </div>
 
       {/* Tab bar */}

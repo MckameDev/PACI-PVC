@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import api from '../../../api/axios';
+import SearchSelect from '../../../components/ui/SearchSelect';
 import Select from '../../../components/ui/Select';
 import Input from '../../../components/ui/Input';
 import Card from '../../../components/ui/Card';
@@ -7,21 +8,50 @@ import Spinner from '../../../components/ui/Spinner';
 
 export default function StepIdentificacion({ data, onChange }) {
   const [estudiantes, setEstudiantes] = useState([]);
+  const [profesores, setProfesores] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await api.get('/estudiantes', { params: { limit: 100 } });
-        setEstudiantes(res.data.data?.items || []);
+        const [estRes, profRes] = await Promise.all([
+          api.get('/estudiantes', { params: { limit: 200 } }),
+          api.get('/profesores', { params: { limit: 200 } }),
+        ]);
+        setEstudiantes(estRes.data.data?.items || []);
+        setProfesores(profRes.data.data?.items || []);
       } catch {
-        console.error('Error loading students');
+        console.error('Error loading data');
       } finally {
         setLoading(false);
       }
     };
     load();
   }, []);
+
+  // Auto-fill año escolar on mount if empty
+  useEffect(() => {
+    if (!data.anio_escolar) {
+      onChange('anio_escolar', new Date().getFullYear().toString());
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAnioEscolar = (e) => {
+    const val = e.target.value;
+    // Only allow digits, max 4 chars
+    if (/^\d{0,4}$/.test(val)) {
+      onChange('anio_escolar', val);
+    }
+  };
+
+  const anioError = data.anio_escolar && data.anio_escolar.length === 4 && !data.anio_escolar.startsWith('20')
+    ? 'El año debe iniciar con 20'
+    : '';
+
+  const profesorOptions = profesores.map((p) => ({
+    value: p.usuario_nombre || p.nombre || p.id,
+    label: `${p.usuario_nombre || p.nombre || 'Sin nombre'}${p.especialidad ? ' — ' + p.especialidad : ''}${p.cargo ? ' (' + p.cargo + ')' : ''}`,
+  }));
 
   if (loading) return <Spinner className="h-40" />;
 
@@ -37,12 +67,12 @@ export default function StepIdentificacion({ data, onChange }) {
       </div>
 
       <Card className="space-y-5">
-        <Select
+        <SearchSelect
           id="estudiante_id"
           label="Estudiante *"
           placeholder="Seleccione un estudiante"
           value={data.estudiante_id}
-          onChange={(e) => onChange('estudiante_id', e.target.value)}
+          onChange={(val) => onChange('estudiante_id', val)}
           options={estudiantes.map((est) => ({
             value: est.id,
             label: `${est.nombre_completo} — ${est.rut}`,
@@ -71,11 +101,11 @@ export default function StepIdentificacion({ data, onChange }) {
             onChange={(e) => onChange('fecha_emision', e.target.value)}
             required
           />
-          <Select
+          <SearchSelect
             id="formato_generado"
             label="Formato de Salida *"
             value={data.formato_generado}
-            onChange={(e) => onChange('formato_generado', e.target.value)}
+            onChange={(val) => onChange('formato_generado', val)}
             options={[
               { value: 'Compacto', label: 'Compacto — Resumen 2-3 páginas' },
               { value: 'Completo', label: 'Completo — Tablas extendidas' },
@@ -91,24 +121,28 @@ export default function StepIdentificacion({ data, onChange }) {
             label="Año Escolar"
             placeholder="Ej: 2026"
             value={data.anio_escolar || ''}
-            onChange={(e) => onChange('anio_escolar', e.target.value)}
+            onChange={handleAnioEscolar}
+            error={anioError}
+            maxLength={4}
           />
-          <Input
+          <SearchSelect
             id="profesor_jefe"
             label="Profesor/a Jefe"
-            placeholder="Nombre del profesor/a jefe"
+            placeholder="Seleccione profesor/a jefe"
             value={data.profesor_jefe || ''}
-            onChange={(e) => onChange('profesor_jefe', e.target.value)}
+            onChange={(val) => onChange('profesor_jefe', val)}
+            options={profesorOptions}
           />
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <Input
+          <SearchSelect
             id="profesor_asignatura"
             label="Profesor/a de Asignatura"
-            placeholder="Nombre del profesor/a de asignatura"
+            placeholder="Seleccione profesor/a de asignatura"
             value={data.profesor_asignatura || ''}
-            onChange={(e) => onChange('profesor_asignatura', e.target.value)}
+            onChange={(val) => onChange('profesor_asignatura', val)}
+            options={profesorOptions}
           />
           <Input
             id="educador_diferencial"

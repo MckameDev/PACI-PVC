@@ -8,6 +8,7 @@ class User extends BaseModel
 {
     protected string $table    = 'users';
     protected array  $fillable = [
-        'nombre', 'email', 'password', 'rol', 'limite_estudiantes', 'limite_paci'
+        'nombre', 'email', 'password', 'rol', 'establecimiento_id',
+        'limite_estudiantes', 'limite_paci'
     ];
 }

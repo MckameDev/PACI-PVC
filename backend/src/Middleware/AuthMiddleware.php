@@ -56,6 +56,12 @@ class AuthMiddleware
         return self::$currentUser->rol ?? null;
     }
 
+    // Retorna el establecimiento_id del usuario autenticado
+    public static function getUserEstablecimientoId(): ?string
+    {
+        return self::$currentUser->est ?? null;
+    }
+
     // Retorna el payload completo del token decodificado
     public static function getUser(): ?object
     {

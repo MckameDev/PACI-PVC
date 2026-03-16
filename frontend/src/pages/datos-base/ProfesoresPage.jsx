@@ -8,6 +8,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 
@@ -151,9 +152,16 @@ export default function ProfesoresPage() {
           <h1 className="text-2xl font-bold text-slate-900">Profesores</h1>
           <p className="mt-1 text-sm text-secondary">{total} registros — Profesores vinculados a usuarios</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuevo Profesor
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Profesores"
+            description="Registra y administra los profesores del establecimiento. Incluye su nombre completo, RUT y estado de actividad. Los profesores pueden ser vinculados a PACI y asignaturas."
+            meaning="Es la lista de profesores del colegio registrados en el sistema. Aquí puedes agregar, editar o desactivar profesores."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nuevo Profesor
+          </Button>
+        </div>
       </div>
 
       {alert.message && (

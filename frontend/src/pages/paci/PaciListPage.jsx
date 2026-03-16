@@ -7,6 +7,7 @@ import Badge from '../../components/ui/Badge';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
+import HelpButton from '../../components/ui/HelpButton';
 
 export default function PaciListPage() {
   const navigate = useNavigate();
@@ -41,11 +42,18 @@ export default function PaciListPage() {
           <h1 className="text-2xl font-bold text-slate-900">Documentos PACI</h1>
           <p className="mt-1 text-sm text-secondary">Listado de todos los PACI generados</p>
         </div>
-        <Link to="/paci/nuevo">
-          <Button>
-            <FilePlus className="h-4 w-4" /> Crear Nuevo PACI
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Documentos PACI"
+            description="Muestra todos los Planes de Adecuación Curricular Individual (PACI) creados. Permite filtrar por estudiante, estado y curso, y acceder al detalle de cada PACI ya elaborado."
+            meaning="Es donde están todos los planes de apoyo individuales (PACI). Puedes buscar el PACI de un estudiante específico y revisarlo."
+          />
+          <Link to="/paci/nuevo">
+            <Button>
+              <FilePlus className="h-4 w-4" /> Crear Nuevo PACI
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {loading ? (

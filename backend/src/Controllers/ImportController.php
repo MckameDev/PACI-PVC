@@ -23,7 +23,7 @@ class ImportController
      */
     public function importOa(): void
     {
-        AuthMiddleware::requireRole('Admin');
+        AuthMiddleware::requireRole(['Admin']);
         $userId = AuthMiddleware::getUserId();
         $data   = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -46,7 +46,7 @@ class ImportController
      */
     public function importIndicadores(): void
     {
-        AuthMiddleware::requireRole('Admin');
+        AuthMiddleware::requireRole(['Admin']);
         $userId = AuthMiddleware::getUserId();
         $data   = json_decode(file_get_contents('php://input'), true) ?? [];
 
@@ -103,9 +103,73 @@ class ImportController
         $this->handleMatrizImport('importHerramientasApoyo');
     }
 
+    // ================================================================
+    // IMPORT TABLAS CORE v7 (10 endpoints)
+    // ================================================================
+
+    /** POST /api/import/habilidades-lenguaje */
+    public function importHabilidadesLenguaje(): void
+    {
+        $this->handleMatrizImport('importHabilidadesLenguaje');
+    }
+
+    /** POST /api/import/activacion-paci */
+    public function importActivacionPaci(): void
+    {
+        $this->handleMatrizImport('importActivacionPaci');
+    }
+
+    /** POST /api/import/core-lectura */
+    public function importCoreLectura(): void
+    {
+        $this->handleMatrizImport('importCoreLectura');
+    }
+
+    /** POST /api/import/core-escritura */
+    public function importCoreEscritura(): void
+    {
+        $this->handleMatrizImport('importCoreEscritura');
+    }
+
+    /** POST /api/import/core-comunicacion-oral */
+    public function importCoreComunicacionOral(): void
+    {
+        $this->handleMatrizImport('importCoreComunicacionOral');
+    }
+
+    /** POST /api/import/matriz-progresion */
+    public function importMatrizProgresion(): void
+    {
+        $this->handleMatrizImport('importMatrizProgresion');
+    }
+
+    /** POST /api/import/estrategias-core */
+    public function importEstrategiasCore(): void
+    {
+        $this->handleMatrizImport('importEstrategiasCore');
+    }
+
+    /** POST /api/import/progresion-lectora */
+    public function importProgresionLectora(): void
+    {
+        $this->handleMatrizImport('importProgresionLectora');
+    }
+
+    /** POST /api/import/matriz-adecuaciones */
+    public function importMatrizAdecuaciones(): void
+    {
+        $this->handleMatrizImport('importMatrizAdecuaciones');
+    }
+
+    /** POST /api/import/progresion-curricular */
+    public function importProgresionCurricular(): void
+    {
+        $this->handleMatrizImport('importProgresionCurricular');
+    }
+
     private function handleMatrizImport(string $method): void
     {
-        AuthMiddleware::requireRole('Admin');
+        AuthMiddleware::requireRole(['Admin']);
         $userId = AuthMiddleware::getUserId();
         $data   = json_decode(file_get_contents('php://input'), true) ?? [];
 

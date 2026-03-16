@@ -9,6 +9,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Input from '../../components/ui/Input';
 import { getRegiones, getComunasByRegion } from '../../data/comunas';
 
@@ -148,9 +149,16 @@ export default function EstablecimientosPage() {
           <h1 className="text-2xl font-bold text-slate-900">Establecimientos</h1>
           <p className="mt-1 text-sm text-secondary">{total} registros</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuevo Establecimiento
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Establecimientos"
+            description="Registra y administra los establecimientos educacionales vinculados al sistema. Incluye nombre, RBD, dirección y comuna. Cada usuario y estudiante pertenece a un establecimiento."
+            meaning="Es donde se guarda la información del colegio. Todo en el sistema está asociado a un establecimiento específico."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nuevo Establecimiento
+          </Button>
+        </div>
       </div>
 
       {alert.message && (

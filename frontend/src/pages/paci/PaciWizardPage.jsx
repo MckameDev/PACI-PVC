@@ -29,7 +29,7 @@ export default function PaciWizardPage() {
     estudiante_id: '',
     fecha_emision: new Date().toISOString().slice(0, 10),
     formato_generado: 'Compacto',
-    anio_escolar: '',
+    anio_escolar: new Date().getFullYear().toString(),
     profesor_jefe: '',
     profesor_asignatura: '',
     educador_diferencial: '',

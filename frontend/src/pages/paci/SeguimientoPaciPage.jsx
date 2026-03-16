@@ -7,6 +7,7 @@ import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
 import Spinner from '../../components/ui/Spinner';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 
 const MESES = [
   { num: 3, label: 'Mar' },
@@ -155,9 +156,16 @@ export default function SeguimientoPaciPage() {
             <p className="text-sm text-secondary">{paci.estudiante_nombre} — {anio}</p>
           </div>
         </div>
-        <Button onClick={handleSaveAll} loading={saving}>
-          <Save className="h-4 w-4" /> Guardar Seguimiento
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Seguimiento PACI"
+            description="Registra el seguimiento periódico de un PACI activo. Permite documentar el progreso del estudiante, ajustes realizados y observaciones por período, manteniendo un historial de la intervención."
+            meaning="Es donde el docente anota cómo va avanzando el estudiante con su PACI. Sirve para llevar registro de los avances y cambios durante el año."
+          />
+          <Button onClick={handleSaveAll} loading={saving}>
+            <Save className="h-4 w-4" /> Guardar Seguimiento
+          </Button>
+        </div>
       </div>
 
       {alert.message && (

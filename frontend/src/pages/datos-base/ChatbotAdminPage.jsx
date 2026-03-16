@@ -9,6 +9,7 @@ import Input from '../../components/ui/Input';
 import TextArea from '../../components/ui/TextArea';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Badge from '../../components/ui/Badge';
 import EmptyState from '../../components/ui/EmptyState';
 import {
@@ -246,11 +247,18 @@ export default function ChatbotAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Administrador de Chatbot</h1>
-        <p className="text-sm text-secondary mt-1">
-          Gestione los temas y opciones del chatbot pedagógico. Máximo 3 niveles de profundidad.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Administrador de Chatbot</h1>
+          <p className="text-sm text-secondary mt-1">
+            Gestione los temas y opciones del chatbot pedagógico. Máximo 3 niveles de profundidad.
+          </p>
+        </div>
+        <HelpButton
+          title="Administrador de Chatbot"
+          description="Administra el contenido del chatbot pedagógico. Permite crear y editar temas de conversación y sus opciones de respuesta, que el chatbot usa para orientar a los docentes con sugerencias pedagógicas."
+          meaning="Es donde se configura lo que el asistente virtual puede responder. Aquí defines las preguntas y respuestas del chatbot del sistema."
+        />
       </div>
 
       {alert.message && <Alert type={alert.type} onClose={() => setAlert({ type: '', message: '' })}>{alert.message}</Alert>}

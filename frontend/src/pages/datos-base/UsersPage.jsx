@@ -5,11 +5,13 @@ import { validateEmail, extractApiErrors } from '../../utils/validation';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
 import Select from '../../components/ui/Select';
+import SearchSelect from '../../components/ui/SearchSelect';
 import Pagination from '../../components/ui/Pagination';
 import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Input from '../../components/ui/Input';
 
 const ROLES = [
@@ -26,7 +28,7 @@ const ROLE_COLORS = {
   Especialista: 'warning',
 };
 
-const EMPTY_FORM = { nombre: '', email: '', password: '', rol: 'Docente', limite_estudiantes: '5' };
+const EMPTY_FORM = { nombre: '', email: '', password: '', rol: 'Docente', limite_estudiantes: '5', establecimiento_id: '', profesor_especialidad: '', profesor_cargo: '' };
 
 export default function UsersPage() {
   const [items, setItems] = useState([]);
@@ -46,6 +48,14 @@ export default function UsersPage() {
   const [deleting, setDeleting] = useState(false);
 
   const [alert, setAlert] = useState({ type: '', message: '' });
+  const [establecimientos, setEstablecimientos] = useState([]);
+
+  const fetchEstablecimientos = useCallback(async () => {
+    try {
+      const res = await api.get('/establecimientos', { params: { limit: 200 } });
+      setEstablecimientos(res.data.data?.items || []);
+    } catch { /* ignore */ }
+  }, []);
 
   const fetchItems = useCallback(async (p = 1) => {
     setLoading(true);
@@ -63,7 +73,7 @@ export default function UsersPage() {
     }
   }, []);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+  useEffect(() => { fetchItems(); fetchEstablecimientos(); }, [fetchItems, fetchEstablecimientos]);
 
   const openCreate = () => {
     setEditId(null);
@@ -77,9 +87,12 @@ export default function UsersPage() {
     setFormData({
       nombre: item.nombre || '',
       email: item.email || '',
-      password: '', // don't prefill password
+      password: '',
       rol: item.rol || 'Docente',
       limite_estudiantes: item.limite_estudiantes?.toString() || '5',
+      establecimiento_id: item.establecimiento_id || '',
+      profesor_especialidad: item.profesor_especialidad || '',
+      profesor_cargo: item.profesor_cargo || '',
     });
     setFormErrors({});
     setFormModal(true);
@@ -102,8 +115,13 @@ export default function UsersPage() {
         email: formData.email,
         rol: formData.rol,
         limite_estudiantes: parseInt(formData.limite_estudiantes, 10) || 5,
+        establecimiento_id: formData.establecimiento_id || null,
       };
       if (formData.password) payload.password = formData.password;
+      if (formData.rol === 'Docente' || formData.rol === 'Especialista') {
+        payload.profesor_especialidad = formData.profesor_especialidad || null;
+        payload.profesor_cargo = formData.profesor_cargo || null;
+      }
 
       if (editId) {
         await api.put(`/users/${editId}`, payload);
@@ -152,9 +170,16 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold text-slate-900">Gestión de Usuarios</h1>
           <p className="mt-1 text-sm text-secondary">{total} usuarios registrados</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuevo Usuario
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Gestión de Usuarios"
+            description="Gestiona las cuentas de usuario del sistema. Permite crear usuarios con roles (Admin o Docente), asignarles establecimiento y activar o desactivar cuentas."
+            meaning="Es donde el administrador crea y controla quién puede entrar al sistema y qué puede hacer dentro de él."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nuevo Usuario
+          </Button>
+        </div>
       </div>
 
       {alert.message && (
@@ -196,6 +221,7 @@ export default function UsersPage() {
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Nombre</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Email</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">Rol</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Establecimiento</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">Límite Est.</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Creado</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">Acciones</th>
@@ -219,6 +245,7 @@ export default function UsersPage() {
                       {item.rol}
                     </Badge>
                   </td>
+                  <td className="px-4 py-3 text-slate-600 text-xs">{item.establecimiento_nombre || '—'}</td>
                   <td className="px-4 py-3 text-center text-slate-600">{item.limite_estudiantes}</td>
                   <td className="px-4 py-3 text-slate-500 text-xs">
                     {item.created_at ? new Date(item.created_at).toLocaleDateString('es-CL') : '—'}
@@ -304,6 +331,34 @@ export default function UsersPage() {
               placeholder="5"
             />
           </div>
+          <SearchSelect
+            label="Establecimiento"
+            id="establecimiento_id"
+            placeholder="Seleccione establecimiento"
+            value={formData.establecimiento_id}
+            onChange={(val) => setFormData({ ...formData, establecimiento_id: val })}
+            options={establecimientos.map((e) => ({ value: e.id, label: e.nombre }))}
+            error={formErrors.establecimiento_id}
+          />
+          {(formData.rol === 'Docente' || formData.rol === 'Especialista') && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 rounded-lg border border-primary/20 bg-primary/5 p-4">
+              <p className="col-span-full text-xs font-medium text-primary">Datos de Profesor (se creará registro automáticamente)</p>
+              <Input
+                label="Especialidad"
+                id="profesor_especialidad"
+                placeholder="Ej: Educación Diferencial"
+                value={formData.profesor_especialidad}
+                onChange={(e) => setFormData({ ...formData, profesor_especialidad: e.target.value })}
+              />
+              <Input
+                label="Cargo"
+                id="profesor_cargo"
+                placeholder="Ej: Profesora PIE"
+                value={formData.profesor_cargo}
+                onChange={(e) => setFormData({ ...formData, profesor_cargo: e.target.value })}
+              />
+            </div>
+          )}
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="ghost" size="sm" onClick={() => setFormModal(false)}>
               Cancelar

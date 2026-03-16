@@ -26,6 +26,15 @@ class EstudianteController
             'establecimiento_id', 'curso_nivel_id', 'tipo_nee'
         ]));
 
+        // Non-Admin users only see students from their establecimiento
+        $rol = AuthMiddleware::getUserRole();
+        if ($rol !== 'Admin') {
+            $userEstId = AuthMiddleware::getUserEstablecimientoId();
+            if ($userEstId) {
+                $filters['establecimiento_id'] = $userEstId;
+            }
+        }
+
         Response::success($this->service->getAll($filters, $page, $limit));
     }
 

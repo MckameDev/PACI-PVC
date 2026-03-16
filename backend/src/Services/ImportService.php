@@ -35,36 +35,29 @@ class ImportService
             foreach ($rows as $index => $row) {
                 $lineNum = $index + 2; // header = row 1
 
-                $idOa = trim($row['id_oa'] ?? '');
-                if (empty($idOa)) {
-                    $errors[] = "Fila {$lineNum}: id_oa vacío, se omite.";
-                    continue;
-                }
-
-                $textoOa = trim($row['texto_oa'] ?? '');
+                // Acepta tanto oa_texto como texto_oa
+                $textoOa = trim($row['oa_texto'] ?? $row['texto_oa'] ?? '');
                 if (empty($textoOa)) {
-                    $errors[] = "Fila {$lineNum}: texto_oa vacío para {$idOa}, se omite.";
+                    $errors[] = "Fila {$lineNum}: oa_texto vacío, se omite.";
                     continue;
                 }
 
-                // Resolver asignatura_id
-                $asignaturaId = $this->resolveAsignatura($row['asignatura_codigo'] ?? '', $row['asignatura_nombre'] ?? '');
+                // Resolver asignatura_id — acepta 'asignatura' o 'asignatura_nombre'/'asignatura_codigo'
+                $asigNombre = trim($row['asignatura'] ?? $row['asignatura_nombre'] ?? '');
+                $asigCodigo = trim($row['asignatura_codigo'] ?? '');
+                $asignaturaId = $this->resolveAsignatura($asigCodigo, $asigNombre);
                 if (!$asignaturaId) {
-                    $errors[] = "Fila {$lineNum}: No se encontró asignatura para '{$row['asignatura_codigo']}' / '{$row['asignatura_nombre']}' en {$idOa}.";
+                    $errors[] = "Fila {$lineNum}: No se encontró asignatura '{$asigNombre}', se omite.";
                     continue;
                 }
 
-                // Resolver nivel_trabajo_id
-                $nivelId = $this->resolveNivel($row['nivel_nombre'] ?? '');
+                // Resolver nivel_trabajo_id — acepta 'nivel' o 'nivel_nombre'
+                $nivelNombre = trim($row['nivel'] ?? $row['nivel_nombre'] ?? '');
+                $nivelId = $this->resolveNivel($nivelNombre);
                 if (!$nivelId) {
-                    $errors[] = "Fila {$lineNum}: No se encontró nivel '{$row['nivel_nombre']}' en {$idOa}.";
+                    $errors[] = "Fila {$lineNum}: No se encontró nivel '{$nivelNombre}', se omite.";
                     continue;
                 }
-
-                // Check if OA exists
-                $existStmt = $this->db->prepare("SELECT id FROM oa_db WHERE id_oa = :id_oa LIMIT 1");
-                $existStmt->execute([':id_oa' => $idOa]);
-                $existingId = $existStmt->fetchColumn();
 
                 // Resolver eje_id si hay catálogo
                 $ejeId = null;
@@ -73,47 +66,81 @@ class ImportService
                     $ejeId = $this->resolveEje($asignaturaId, $ejeNombre, $userId);
                 }
 
+                // Columnas opcionales
+                $idOa       = trim($row['id_oa'] ?? '');
+                $ambito     = trim($row['ambito'] ?? '');
+                $nucleo     = trim($row['nucleo'] ?? '');
+                $baseHab    = trim($row['base_de_habilidades'] ?? '');
+                $nivelLogro = trim($row['nivel_logro'] ?? '');
+                $indicLogro = trim($row['indicador_logro'] ?? '');
+                $fuente     = trim($row['fuente'] ?? '');
+                $tipoOa     = trim($row['tipo_oa'] ?? '');
+
+                // Deduplicar por id_oa (código) si viene, sino por (asignatura_id, nivel_trabajo_id, texto_oa)
+                if ($idOa) {
+                    $existStmt = $this->db->prepare("SELECT id FROM oa_db WHERE id_oa = :id_oa LIMIT 1");
+                    $existStmt->execute([':id_oa' => $idOa]);
+                } else {
+                    $existStmt = $this->db->prepare(
+                        "SELECT id FROM oa_db WHERE asignatura_id = :asig AND nivel_trabajo_id = :nivel AND texto_oa = :texto AND vigencia = 1 LIMIT 1"
+                    );
+                    $existStmt->execute([':asig' => $asignaturaId, ':nivel' => $nivelId, ':texto' => $textoOa]);
+                }
+                $existingId = $existStmt->fetchColumn();
+
                 if ($existingId) {
                     // Update
                     $sql = "UPDATE oa_db SET asignatura_id = :asig, nivel_trabajo_id = :nivel, eje = :eje, eje_id = :eje_id,
-                            tipo_oa = :tipo, codigo_oa = :codigo, texto_oa = :texto, habilidad_core = :hab,
-                            es_habilidad_estructural = :es_hab, updated_by = :user
+                            ambito = :ambito, nucleo = :nucleo, tipo_oa = :tipo, texto_oa = :texto,
+                            base_de_habilidades = :base_hab, nivel_logro = :nivel_logro,
+                            indicador_logro = :indic_logro, fuente = :fuente, updated_by = :user
                             WHERE id = :id";
                     $stmt = $this->db->prepare($sql);
                     $stmt->execute([
-                        ':asig'   => $asignaturaId,
-                        ':nivel'  => $nivelId,
-                        ':eje'    => $ejeNombre ?: null,
-                        ':eje_id' => $ejeId,
-                        ':tipo'   => $row['tipo_oa'] ?? null,
-                        ':codigo' => $row['codigo_oa'] ?? null,
-                        ':texto'  => $textoOa,
-                        ':hab'    => $row['habilidad_core'] ?? null,
-                        ':es_hab' => ($row['es_habilidad_estructural'] ?? 0) ? 1 : 0,
-                        ':user'   => $userId,
-                        ':id'     => $existingId,
+                        ':asig'        => $asignaturaId,
+                        ':nivel'       => $nivelId,
+                        ':eje'         => $ejeNombre ?: null,
+                        ':eje_id'      => $ejeId,
+                        ':ambito'      => $ambito ?: null,
+                        ':nucleo'      => $nucleo ?: null,
+                        ':tipo'        => $tipoOa ?: null,
+                        ':texto'       => $textoOa,
+                        ':base_hab'    => $baseHab ?: null,
+                        ':nivel_logro' => $nivelLogro ?: null,
+                        ':indic_logro' => $indicLogro ?: null,
+                        ':fuente'      => $fuente ?: null,
+                        ':user'        => $userId,
+                        ':id'          => $existingId,
                     ]);
                     $updated++;
                 } else {
-                    // Insert
-                    $sql = "INSERT INTO oa_db (id, id_oa, asignatura_id, nivel_trabajo_id, eje, eje_id, tipo_oa, codigo_oa,
-                            texto_oa, habilidad_core, es_habilidad_estructural, vigencia, created_by, updated_by)
-                            VALUES (:id, :id_oa, :asig, :nivel, :eje, :eje_id, :tipo, :codigo, :texto, :hab, :es_hab, 1, :user, :user2)";
+                    // Insert — id generado como UUID, id_oa es el código del OA (ej: LVNT-OA01)
+                    $sql = "INSERT INTO oa_db (id, id_oa, asignatura_id, nivel_trabajo_id, eje, eje_id,
+                            ambito, nucleo, tipo_oa, codigo_oa, texto_oa, habilidad_core, es_habilidad_estructural,
+                            base_de_habilidades, nivel_logro, indicador_logro, fuente,
+                            vigencia, created_by, updated_by)
+                            VALUES (:id, :id_oa, :asig, :nivel, :eje, :eje_id,
+                            :ambito, :nucleo, :tipo, NULL, :texto, NULL, 0,
+                            :base_hab, :nivel_logro, :indic_logro, :fuente,
+                            1, :user, :user2)";
                     $stmt = $this->db->prepare($sql);
                     $stmt->execute([
-                        ':id'     => UUID::generate(),
-                        ':id_oa'  => $idOa,
-                        ':asig'   => $asignaturaId,
-                        ':nivel'  => $nivelId,
-                        ':eje'    => $ejeNombre ?: null,
-                        ':eje_id' => $ejeId,
-                        ':tipo'   => $row['tipo_oa'] ?? null,
-                        ':codigo' => $row['codigo_oa'] ?? null,
-                        ':texto'  => $textoOa,
-                        ':hab'    => $row['habilidad_core'] ?? null,
-                        ':es_hab' => ($row['es_habilidad_estructural'] ?? 0) ? 1 : 0,
-                        ':user'   => $userId,
-                        ':user2'  => $userId,
+                        ':id'          => UUID::generate(),
+                        ':id_oa'       => $idOa ?: UUID::generate(),
+                        ':asig'        => $asignaturaId,
+                        ':nivel'       => $nivelId,
+                        ':eje'         => $ejeNombre ?: null,
+                        ':eje_id'      => $ejeId,
+                        ':ambito'      => $ambito ?: null,
+                        ':nucleo'      => $nucleo ?: null,
+                        ':tipo'        => $tipoOa ?: null,
+                        ':texto'       => $textoOa,
+                        ':base_hab'    => $baseHab ?: null,
+                        ':nivel_logro' => $nivelLogro ?: null,
+                        ':indic_logro' => $indicLogro ?: null,
+                        ':fuente'      => $fuente ?: null,
+                        ':user'        => $userId,
+                        ':user2'       => $userId,
                     ]);
                     $inserted++;
                 }
@@ -135,7 +162,8 @@ class ImportService
 
     /**
      * Import Indicadores from parsed Excel/CSV rows.
-     * Each row: id_oa (to link), nivel_desempeno, texto_indicador
+     * Each row: id_oa, curso, eje, nivel_logro (Inicial/Intermedio/Avanzado), indicador (texto)
+     * También soporta formato legacy: id_oa, nivel_desempeno (L/ED/NL), texto_indicador
      */
     public function importIndicadores(array $rows, ?string $userId): array
     {
@@ -150,16 +178,32 @@ class ImportService
                 $lineNum = $index + 2;
 
                 $idOa = trim($row['id_oa'] ?? '');
-                $nivel = trim($row['nivel_desempeno'] ?? '');
-                $texto = trim($row['texto_indicador'] ?? '');
 
-                if (empty($idOa) || empty($nivel) || empty($texto)) {
-                    $errors[] = "Fila {$lineNum}: Campos obligatorios vacíos (id_oa, nivel_desempeno, texto_indicador).";
+                // Soportar nuevo formato (indicador) y legacy (texto_indicador)
+                $texto = trim($row['indicador'] ?? $row['texto_indicador'] ?? '');
+
+                // Soportar nuevo formato (nivel_logro) y legacy (nivel_desempeno)
+                $nivelLogro    = trim($row['nivel_logro'] ?? '');
+                $nivelDesempen = trim($row['nivel_desempeno'] ?? '');
+
+                $curso = trim($row['curso'] ?? '');
+                $eje   = trim($row['eje'] ?? '');
+
+                if (empty($idOa) || empty($texto)) {
+                    $errors[] = "Fila {$lineNum}: Campos obligatorios vacíos (id_oa, indicador/texto_indicador).";
                     continue;
                 }
 
-                if (!in_array($nivel, ['L', 'ED', 'NL'])) {
-                    $errors[] = "Fila {$lineNum}: nivel_desempeno '{$nivel}' no válido. Usar L, ED o NL.";
+                // Validar nivel_desempeno legacy si viene
+                if ($nivelDesempen && !in_array($nivelDesempen, ['L', 'ED', 'NL'])) {
+                    $errors[] = "Fila {$lineNum}: nivel_desempeno '{$nivelDesempen}' no válido. Usar L, ED o NL.";
+                    continue;
+                }
+
+                // Validar nivel_logro nuevo si viene
+                $validNivelesLogro = ['Inicial', 'Intermedio', 'Avanzado'];
+                if ($nivelLogro && !in_array($nivelLogro, $validNivelesLogro)) {
+                    $errors[] = "Fila {$lineNum}: nivel_logro '{$nivelLogro}' no válido. Usar Inicial, Intermedio o Avanzado.";
                     continue;
                 }
 
@@ -173,28 +217,31 @@ class ImportService
                     continue;
                 }
 
-                // Check duplicado exacto
+                // Check duplicado exacto (nivel_logro + texto o nivel_desempeno + texto)
                 $dupStmt = $this->db->prepare(
-                    "SELECT id FROM indicadores_db WHERE oa_id = :oa_id AND nivel_desempeno = :nivel AND texto_indicador = :texto AND vigencia = 1 LIMIT 1"
+                    "SELECT id FROM indicadores_db WHERE oa_id = :oa_id AND texto_indicador = :texto AND vigencia = 1 LIMIT 1"
                 );
-                $dupStmt->execute([':oa_id' => $oaId, ':nivel' => $nivel, ':texto' => $texto]);
+                $dupStmt->execute([':oa_id' => $oaId, ':texto' => $texto]);
                 $dupId = $dupStmt->fetchColumn();
 
                 if ($dupId) {
-                    $updated++; // Already exists, count as "no change"
+                    $updated++;
                     continue;
                 }
 
-                $sql = "INSERT INTO indicadores_db (id, oa_id, nivel_desempeno, texto_indicador, vigencia, created_by, updated_by)
-                        VALUES (:id, :oa_id, :nivel, :texto, 1, :user, :user2)";
+                $sql = "INSERT INTO indicadores_db (id, oa_id, curso, eje, nivel_logro, nivel_desempeno, texto_indicador, vigencia, created_by, updated_by)
+                        VALUES (:id, :oa_id, :curso, :eje, :nivel_logro, :nivel_desemp, :texto, 1, :user, :user2)";
                 $stmt = $this->db->prepare($sql);
                 $stmt->execute([
-                    ':id'    => UUID::generate(),
-                    ':oa_id' => $oaId,
-                    ':nivel' => $nivel,
-                    ':texto' => $texto,
-                    ':user'  => $userId,
-                    ':user2' => $userId,
+                    ':id'           => UUID::generate(),
+                    ':oa_id'        => $oaId,
+                    ':curso'        => $curso ?: null,
+                    ':eje'          => $eje ?: null,
+                    ':nivel_logro'  => $nivelLogro ?: null,
+                    ':nivel_desemp' => $nivelDesempen ?: null,
+                    ':texto'        => $texto,
+                    ':user'         => $userId,
+                    ':user2'        => $userId,
                 ]);
                 $inserted++;
             }
@@ -338,6 +385,91 @@ class ImportService
         ]);
     }
 
+    // ================================================================
+    // IMPORTACIÓN TABLAS CURRICULARES v7 (10 tipos)
+    // Patrón: insert genérico sin upsert por código (no tienen campo "codigo")
+    // ================================================================
+
+    public function importHabilidadesLenguaje(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'habilidades_lenguaje', [
+            'fields' => ['nivel', 'eje', 'habilidad', 'descripcion'],
+            'label'  => 'habilidad del lenguaje',
+        ]);
+    }
+
+    public function importActivacionPaci(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'activacion_paci', [
+            'fields' => ['habilidad_detectada', 'eje', 'core_nivel', 'id_oa', 'estrategia', 'adecuacion', 'actividad'],
+            'label'  => 'activación PACI',
+        ]);
+    }
+
+    public function importCoreLectura(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'core_lectura', [
+            'fields' => ['core_nivel', 'core_habilidad', 'proceso_lector', 'descripcion'],
+            'label'  => 'core lectura',
+        ]);
+    }
+
+    public function importCoreEscritura(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'core_escritura', [
+            'fields' => ['core_nivel', 'core_habilidad', 'proceso_escritor', 'descripcion'],
+            'label'  => 'core escritura',
+        ]);
+    }
+
+    public function importCoreComunicacionOral(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'core_comunicacion_oral', [
+            'fields' => ['core_nivel', 'core_habilidad', 'proceso_oral', 'descripcion'],
+            'label'  => 'core comunicación oral',
+        ]);
+    }
+
+    public function importMatrizProgresion(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'matriz_progresion', [
+            'fields' => ['asignatura', 'eje', 'core_nivel', 'nivel_curricular', 'id_oa', 'habilidad_clave'],
+            'label'  => 'matriz progresión',
+        ]);
+    }
+
+    public function importEstrategiasCore(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'estrategias_core', [
+            'fields' => ['asignatura', 'eje', 'core_nivel', 'estrategia', 'actividad'],
+            'label'  => 'estrategia core',
+        ]);
+    }
+
+    public function importProgresionLectora(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'progresion_lectora', [
+            'fields' => ['nivel', 'core_nivel', 'habilidad_lectora', 'descripcion'],
+            'label'  => 'progresión lectora',
+        ]);
+    }
+
+    public function importMatrizAdecuaciones(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'matriz_adecuaciones', [
+            'fields' => ['asignatura', 'eje', 'core_nivel', 'dificultad_detectada', 'adecuacion_sugerida'],
+            'label'  => 'matriz adecuación',
+        ]);
+    }
+
+    public function importProgresionCurricular(array $rows, ?string $userId): array
+    {
+        return $this->importGeneric($rows, $userId, 'progresion_curricular', [
+            'fields' => ['habilidad', 'nivel_core', 'nivel_sugerido', 'eje', 'descripcion'],
+            'label'  => 'progresión curricular',
+        ]);
+    }
+
     /**
      * Generic matrix importer: upsert by codigo, transaction-wrapped.
      */
@@ -428,6 +560,73 @@ class ImportService
         return [
             'inserted'        => $inserted,
             'updated'         => $updated,
+            'errors'          => $errors,
+            'total_processed' => count($rows),
+        ];
+    }
+
+    /**
+     * Generic importer for v7 curriculum tables (no codigo upsert — insert only, skip duplicates).
+     */
+    private function importGeneric(array $rows, ?string $userId, string $table, array $config): array
+    {
+        $inserted = 0;
+        $skipped  = 0;
+        $errors   = [];
+
+        $allFields = $config['fields'];
+        $label     = $config['label'];
+
+        $this->db->beginTransaction();
+
+        try {
+            foreach ($rows as $index => $row) {
+                $lineNum = $index + 2;
+
+                // Build field values
+                $fieldValues = [];
+                $hasData = false;
+                foreach ($allFields as $f) {
+                    $val = isset($row[$f]) ? trim((string) $row[$f]) : null;
+                    $fieldValues[$f] = ($val !== '' && $val !== null) ? $val : null;
+                    if ($fieldValues[$f] !== null) {
+                        $hasData = true;
+                    }
+                }
+
+                if (!$hasData) {
+                    $errors[] = "Fila {$lineNum}: todos los campos vacíos, se omite.";
+                    continue;
+                }
+
+                // Insert
+                $fieldNames   = array_merge(['id'], $allFields, ['orden', 'vigencia', 'created_by', 'updated_by']);
+                $placeholders = array_map(fn($f) => ":{$f}", $fieldNames);
+
+                $params = [':id' => UUID::generate()];
+                foreach ($allFields as $f) {
+                    $params[":{$f}"] = $fieldValues[$f];
+                }
+                $params[':orden']      = $index + 1;
+                $params[':vigencia']   = 1;
+                $params[':created_by'] = $userId;
+                $params[':updated_by'] = $userId;
+
+                $sql = "INSERT INTO {$table} (" . implode(', ', $fieldNames) . ") VALUES (" . implode(', ', $placeholders) . ")";
+                $stmt = $this->db->prepare($sql);
+                $stmt->execute($params);
+                $inserted++;
+            }
+
+            $this->db->commit();
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+
+        return [
+            'inserted'        => $inserted,
+            'skipped'         => $skipped,
             'errors'          => $errors,
             'total_processed' => count($rows),
         ];

@@ -10,6 +10,7 @@ import EmptyState from '../../components/ui/EmptyState';
 import Spinner from '../../components/ui/Spinner';
 import Modal from '../../components/ui/Modal';
 import Alert from '../../components/ui/Alert';
+import HelpButton from '../../components/ui/HelpButton';
 import Input from '../../components/ui/Input';
 import Select from '../../components/ui/Select';
 import TextArea from '../../components/ui/TextArea';
@@ -20,6 +21,8 @@ const EMPTY_OA = {
   id_oa: '', asignatura_id: '', nivel_trabajo_id: '', eje: '',
   tipo_oa: '', codigo_oa: '', texto_oa: '', habilidad_core: '',
   es_habilidad_estructural: false,
+  ambito: '', nucleo: '', base_de_habilidades: '', nivel_logro: '',
+  indicador_logro: '', fuente: '',
 };
 
 const EMPTY_IND = { oa_id: '', nivel_desempeno: '', texto_indicador: '' };
@@ -141,6 +144,12 @@ export default function OaPage() {
       texto_oa: item.texto_oa || '',
       habilidad_core: item.habilidad_core || '',
       es_habilidad_estructural: !!item.es_habilidad_estructural,
+      ambito: item.ambito || '',
+      nucleo: item.nucleo || '',
+      base_de_habilidades: item.base_de_habilidades || '',
+      nivel_logro: item.nivel_logro || '',
+      indicador_logro: item.indicador_logro || '',
+      fuente: item.fuente || '',
     });
     setFormErrors({});
     setFormModal(true);
@@ -318,9 +327,16 @@ export default function OaPage() {
           <h1 className="text-2xl font-bold text-slate-900">Objetivos de Aprendizaje</h1>
           <p className="mt-1 text-sm text-secondary">{total} registros</p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" /> Nuevo OA
-        </Button>
+        <div className="flex items-center gap-2">
+          <HelpButton
+            title="Objetivos de Aprendizaje"
+            description="Gestiona los Objetivos de Aprendizaje (OA) del currículum nacional. Permite registrar OA por asignatura, nivel, eje y ámbito, incluyendo su habilidad core, base de habilidades y fuente curricular. Cada OA puede tener indicadores de evaluación asociados."
+            meaning="Es el catálogo de lo que los estudiantes deben aprender según el currículum. Aquí defines los aprendizajes esperados organizados por materia y curso."
+          />
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4" /> Nuevo OA
+          </Button>
+        </div>
       </div>
 
       {alert.message && (
@@ -394,6 +410,8 @@ export default function OaPage() {
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Nivel</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Tipo</th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">Eje</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Ámbito</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">Fuente</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">H. Estruct.</th>
                 <th className="px-4 py-3 text-center font-semibold text-slate-700">Acciones</th>
               </tr>
@@ -426,6 +444,8 @@ export default function OaPage() {
                         : '—'}
                     </td>
                     <td className="px-4 py-3 text-slate-600">{item.eje || '—'}</td>
+                    <td className="px-4 py-3 text-slate-600">{item.ambito || '—'}</td>
+                    <td className="px-4 py-3 text-slate-600">{item.fuente || '—'}</td>
                     <td className="px-4 py-3 text-center">
                       {item.es_habilidad_estructural
                         ? <Badge color="success">Sí</Badge>
@@ -461,7 +481,7 @@ export default function OaPage() {
                   {/* Expanded indicadores row */}
                   {expandedOa === item.id && (
                     <tr className="bg-slate-50/50">
-                      <td colSpan={10} className="px-6 py-4">
+                      <td colSpan={12} className="px-6 py-4">
                         <div className="rounded-lg border border-slate-200 bg-white p-4">
                           <div className="flex items-center justify-between mb-3">
                             <h4 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
@@ -625,6 +645,57 @@ export default function OaPage() {
             value={formData.habilidad_core}
             onChange={(e) => setFormData({ ...formData, habilidad_core: e.target.value })}
             placeholder="Ej: Comprensión lectora"
+          />
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Ámbito"
+              id="ambito"
+              value={formData.ambito}
+              onChange={(e) => setFormData({ ...formData, ambito: e.target.value })}
+              placeholder="Ej: Comunicación Integral"
+            />
+            <Input
+              label="Núcleo"
+              id="nucleo"
+              value={formData.nucleo}
+              onChange={(e) => setFormData({ ...formData, nucleo: e.target.value })}
+              placeholder="Ej: Lenguaje Verbal"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Base de Habilidades"
+              id="base_de_habilidades"
+              value={formData.base_de_habilidades}
+              onChange={(e) => setFormData({ ...formData, base_de_habilidades: e.target.value })}
+              placeholder="Ej: Lectura, Escritura"
+            />
+            <Input
+              label="Nivel de Logro"
+              id="nivel_logro"
+              value={formData.nivel_logro}
+              onChange={(e) => setFormData({ ...formData, nivel_logro: e.target.value })}
+              placeholder="Ej: Inicial, Intermedio, Avanzado"
+            />
+          </div>
+
+          <TextArea
+            label="Indicador de Logro"
+            id="indicador_logro"
+            rows={2}
+            value={formData.indicador_logro}
+            onChange={(e) => setFormData({ ...formData, indicador_logro: e.target.value })}
+            placeholder="Describa el indicador de logro..."
+          />
+
+          <Input
+            label="Fuente"
+            id="fuente"
+            value={formData.fuente}
+            onChange={(e) => setFormData({ ...formData, fuente: e.target.value })}
+            placeholder="Ej: MINEDUC, Decreto 67"
           />
 
           <label className="flex items-center gap-2 cursor-pointer">

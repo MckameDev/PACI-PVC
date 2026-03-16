@@ -170,7 +170,6 @@ class Validator
         }
     }
 
-    // Metodo estatico de conveniencia para validar y retornar errores directamente
     public static function make(array $data, array $rules): self
     {
         $validator = new self($data, $rules);
