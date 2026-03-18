@@ -282,9 +282,28 @@ class ImportService
     private function resolveNivel(string $nombre): ?string
     {
         if (!$nombre) return null;
+
+        // Normalize short codes: 1B→"1° Básico", 8B→"8° Básico", 1M→"1° Medio", etc.
+        $normalized = $this->normalizeNivelNombre($nombre);
+
         $stmt = $this->db->prepare("SELECT id FROM cursos_niveles WHERE nombre = :n AND vigencia = 1 LIMIT 1");
-        $stmt->execute([':n' => $nombre]);
+        $stmt->execute([':n' => $normalized]);
         return $stmt->fetchColumn() ?: null;
+    }
+
+    private function normalizeNivelNombre(string $nombre): string
+    {
+        // Match patterns like "1B", "8B", "1M", "4M", "NT1", "NT2" (case-insensitive)
+        $upper = strtoupper(trim($nombre));
+
+        if (preg_match('/^(\d+)B$/i', $upper, $m)) {
+            return $m[1] . '° Básico';
+        }
+        if (preg_match('/^(\d+)M$/i', $upper, $m)) {
+            return $m[1] . '° Medio';
+        }
+
+        return $nombre;
     }
 
     private function resolveEje(string $asignaturaId, string $nombre, ?string $userId): ?string
@@ -514,6 +533,27 @@ class ImportService
                 }
 
                 if ($existingId) {
+                    // Skip update if all values are already identical
+                    $matchParts  = ['id = :id_match'];
+                    $matchParams = [':id_match' => $existingId];
+                    foreach ($allFields as $f) {
+                        if ($f === 'codigo') continue;
+                        if ($fieldValues[$f] !== null && $fieldValues[$f] !== '') {
+                            $matchParts[]              = "{$f} = :{$f}_match";
+                            $matchParams[":{$f}_match"] = $fieldValues[$f];
+                        } else {
+                            $matchParts[] = "({$f} IS NULL OR {$f} = '')";
+                        }
+                    }
+                    $matchStmt = $this->db->prepare(
+                        "SELECT COUNT(*) FROM {$table} WHERE " . implode(' AND ', $matchParts)
+                    );
+                    $matchStmt->execute($matchParams);
+                    if ((int) $matchStmt->fetchColumn() > 0) {
+                        $updated++; // Already identical — nothing to change
+                        continue;
+                    }
+
                     // Update
                     $setClauses = [];
                     $params = [];
@@ -531,6 +571,29 @@ class ImportService
                     $stmt->execute($params);
                     $updated++;
                 } else {
+                    // Skip insert if exact same content already exists (different codigo)
+                    $dupParts  = [];
+                    $dupParams = [];
+                    foreach ($allFields as $f) {
+                        if ($f === 'codigo') continue;
+                        if ($fieldValues[$f] !== null && $fieldValues[$f] !== '') {
+                            $dupParts[]            = "{$f} = :{$f}_dup";
+                            $dupParams[":{$f}_dup"] = $fieldValues[$f];
+                        } else {
+                            $dupParts[] = "({$f} IS NULL OR {$f} = '')";
+                        }
+                    }
+                    if (!empty($dupParts)) {
+                        $dupStmt = $this->db->prepare(
+                            "SELECT COUNT(*) FROM {$table} WHERE vigencia = 1 AND " . implode(' AND ', $dupParts)
+                        );
+                        $dupStmt->execute($dupParams);
+                        if ((int) $dupStmt->fetchColumn() > 0) {
+                            $updated++; // Same content exists under a different code
+                            continue;
+                        }
+                    }
+
                     // Insert
                     $fieldNames = array_merge(['id'], $allFields, ['orden', 'vigencia', 'created_by', 'updated_by']);
                     $placeholders = array_map(fn($f) => ":{$f}", $fieldNames);
@@ -596,6 +659,26 @@ class ImportService
 
                 if (!$hasData) {
                     $errors[] = "Fila {$lineNum}: todos los campos vacíos, se omite.";
+                    continue;
+                }
+
+                // Skip if exact duplicate already exists
+                $whereParts = [];
+                $chkParams  = [];
+                foreach ($allFields as $f) {
+                    if ($fieldValues[$f] !== null) {
+                        $whereParts[]           = "{$f} = :{$f}_chk";
+                        $chkParams[":{$f}_chk"] = $fieldValues[$f];
+                    } else {
+                        $whereParts[] = "({$f} IS NULL OR {$f} = '')";
+                    }
+                }
+                $chkStmt = $this->db->prepare(
+                    "SELECT COUNT(*) FROM {$table} WHERE vigencia = 1 AND " . implode(' AND ', $whereParts)
+                );
+                $chkStmt->execute($chkParams);
+                if ((int) $chkStmt->fetchColumn() > 0) {
+                    $skipped++;
                     continue;
                 }
 
