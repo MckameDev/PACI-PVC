@@ -31,12 +31,12 @@ export default function Input({
           id={id}
           type={inputType}
           className={`
-            block w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900
-            placeholder:text-slate-400 transition-colors duration-200
-            focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20
+            block w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900
+            placeholder:text-slate-400 transition-all duration-200
+            focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 focus:shadow-sm
             ${Icon ? 'pl-10' : ''}
             ${isPassword ? 'pr-10' : ''}
-            ${error ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-slate-300'}
+            ${error ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-slate-300 hover:border-slate-400'}
           `}
           {...props}
         />

@@ -51,6 +51,7 @@ use App\Controllers\DiagnosticoCoreController;
 use App\Controllers\ProgresionLectoraController;
 use App\Controllers\MatrizAdecuacionController;
 use App\Controllers\ProgresionCurricularController;
+use App\Controllers\PaciBorradorController;
 
 date_default_timezone_set(AppConfig::APP_TIMEZONE);
 
@@ -172,6 +173,13 @@ $router->get('/api/paci/{id}', [PaciController::class, 'show'], true);
 $router->post('/api/paci', [PaciController::class, 'store'], true);
 $router->put('/api/paci/{id}', [PaciController::class, 'update'], true);
 $router->patch('/api/paci/{id}', [PaciController::class, 'toggleVigencia'], true);
+
+// -----------------------------------------------------------
+// Rutas protegidas: Borrador PACI (server-side drafts)
+// -----------------------------------------------------------
+$router->get('/api/paci-borrador', [PaciBorradorController::class, 'show'], true);
+$router->put('/api/paci-borrador', [PaciBorradorController::class, 'upsert'], true);
+$router->patch('/api/paci-borrador', [PaciBorradorController::class, 'destroy'], true);
 
 // -----------------------------------------------------------
 // Rutas protegidas: Objetivos de Aprendizaje
@@ -369,6 +377,7 @@ $router->get('/api/admin/chatbot/opciones/{id}', [ChatbotController::class, 'sho
 $router->post('/api/admin/chatbot/opciones', [ChatbotController::class, 'storeOpcion'], true);
 $router->put('/api/admin/chatbot/opciones/{id}', [ChatbotController::class, 'updateOpcion'], true);
 $router->patch('/api/admin/chatbot/opciones/{id}', [ChatbotController::class, 'toggleOpcion'], true);
+$router->post('/api/admin/chatbot/import', [ChatbotController::class, 'importExcel'], true);
 
 // -----------------------------------------------------------
 // Rutas protegidas: Tablas Core v7 (11 catálogos)

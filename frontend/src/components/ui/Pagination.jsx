@@ -16,14 +16,14 @@ export default function Pagination({ page, totalPages, onPageChange }) {
       <button
         onClick={() => onPageChange(page - 1)}
         disabled={page <= 1}
-        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+        className="rounded-xl p-2 text-slate-500 hover:bg-primary/10 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-all"
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
 
       {start > 1 && (
         <>
-          <button onClick={() => onPageChange(1)} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 cursor-pointer">1</button>
+          <button onClick={() => onPageChange(1)} className="rounded-xl px-3 py-1.5 text-sm text-slate-600 hover:bg-primary/10 cursor-pointer transition-all">1</button>
           {start > 2 && <span className="px-1 text-slate-400">...</span>}
         </>
       )}
@@ -32,10 +32,10 @@ export default function Pagination({ page, totalPages, onPageChange }) {
         <button
           key={p}
           onClick={() => onPageChange(p)}
-          className={`rounded-lg px-3 py-1.5 text-sm font-medium cursor-pointer transition-colors ${
+          className={`rounded-xl px-3 py-1.5 text-sm font-semibold cursor-pointer transition-all ${
             p === page
-              ? 'bg-primary text-white'
-              : 'text-slate-600 hover:bg-slate-100'
+              ? 'bg-primary text-white shadow-md shadow-primary/20'
+              : 'text-slate-600 hover:bg-primary/10'
           }`}
         >
           {p}
@@ -45,14 +45,14 @@ export default function Pagination({ page, totalPages, onPageChange }) {
       {end < totalPages && (
         <>
           {end < totalPages - 1 && <span className="px-1 text-slate-400">...</span>}
-          <button onClick={() => onPageChange(totalPages)} className="rounded-lg px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100 cursor-pointer">{totalPages}</button>
+          <button onClick={() => onPageChange(totalPages)} className="rounded-xl px-3 py-1.5 text-sm text-slate-600 hover:bg-primary/10 cursor-pointer transition-all">{totalPages}</button>
         </>
       )}
 
       <button
         onClick={() => onPageChange(page + 1)}
         disabled={page >= totalPages}
-        className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+        className="rounded-xl p-2 text-slate-500 hover:bg-primary/10 hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-all"
       >
         <ChevronRight className="h-4 w-4" />
       </button>

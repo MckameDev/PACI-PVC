@@ -134,4 +134,26 @@ class ChatbotController
         if (!$deleted) Response::notFound('Opción no encontrada');
         Response::success(['message' => 'Vigencia de la opción actualizada']);
     }
+
+    // ── IMPORT EXCEL ──────────────────────────────────────
+
+    /** POST /api/admin/chatbot/import */
+    public function importExcel(array $params): void
+    {
+        AuthMiddleware::requireRole(['Admin']);
+        $userId = AuthMiddleware::getUserId();
+        $data   = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        if (empty($data['rows']) || !is_array($data['rows'])) {
+            Response::error('Se requiere un array "rows" con los datos a importar', 400);
+            return;
+        }
+
+        try {
+            $result = $this->service->importFromExcel($data['rows'], $userId);
+            Response::success($result);
+        } catch (\Exception $e) {
+            Response::error('Error en la importación: ' . $e->getMessage(), 500);
+        }
+    }
 }

@@ -77,7 +77,7 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       {/* Welcome header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -94,7 +94,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 stagger-children">
         <StatCard
           icon={Users}
           label="Estudiantes Registrados"
@@ -122,15 +122,15 @@ export default function DashboardPage() {
       <Card>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Uso de Cupo de Estudiantes</h3>
-            <span className="text-sm font-medium text-secondary">
+            <h3 className="text-sm font-bold text-slate-900">Uso de Cupo de Estudiantes</h3>
+            <span className="text-sm font-semibold text-secondary">
               {stats?.totalEstudiantes ?? 0} de {stats?.limiteEstudiantes ?? 0}
             </span>
           </div>
           <div className="h-3 w-full overflow-hidden rounded-full bg-slate-100">
             <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                usagePercent >= 90 ? 'bg-danger' : usagePercent >= 70 ? 'bg-warning' : 'bg-accent'
+              className={`h-full rounded-full transition-all duration-700 ease-out ${
+                usagePercent >= 90 ? 'bg-gradient-to-r from-danger to-red-400' : usagePercent >= 70 ? 'bg-gradient-to-r from-orange to-gold' : 'bg-gradient-to-r from-accent to-green'
               }`}
               style={{ width: `${usagePercent}%` }}
             />
@@ -145,32 +145,32 @@ export default function DashboardPage() {
 
       {/* Quick actions */}
       <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="border-dashed border-2 border-accent/30 bg-accent/5 hover:bg-accent/10 transition-colors">
+        <Card className="group border-dashed border-2 border-accent/30 bg-accent/5 hover:bg-accent/10 hover:border-accent/50 hover:shadow-lg hover:shadow-accent/10 transition-all duration-300">
           <Link to="/paci/nuevo" className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-accent text-white">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent-dark text-white shadow-md shadow-accent/20 group-hover:scale-105 transition-transform duration-300">
                 <FilePlus className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Crear Nuevo PACI</h3>
+                <h3 className="text-base font-bold text-slate-900">Crear Nuevo PACI</h3>
                 <p className="text-sm text-secondary">Generar plan de adecuación</p>
               </div>
             </div>
-            <ArrowRight className="h-5 w-5 text-accent" />
+            <ArrowRight className="h-5 w-5 text-accent group-hover:translate-x-1 transition-transform duration-200" />
           </Link>
         </Card>
-        <Card className="border-dashed border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors">
+        <Card className="group border-dashed border-2 border-primary/30 bg-primary/5 hover:bg-primary/10 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all duration-300">
           <Link to="/estudiantes/nuevo" className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-white">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-light text-white shadow-md shadow-primary/20 group-hover:scale-105 transition-transform duration-300">
                 <UserPlus className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-slate-900">Registrar Estudiante</h3>
+                <h3 className="text-base font-bold text-slate-900">Registrar Estudiante</h3>
                 <p className="text-sm text-secondary">Agregar nuevo estudiante</p>
               </div>
             </div>
-            <ArrowRight className="h-5 w-5 text-primary" />
+            <ArrowRight className="h-5 w-5 text-primary group-hover:translate-x-1 transition-transform duration-200" />
           </Link>
         </Card>
       </div>
@@ -179,9 +179,9 @@ export default function DashboardPage() {
       <Card>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-slate-900">Historial Reciente de PACIs</h3>
+            <h3 className="text-sm font-bold text-slate-900">Historial Reciente de PACIs</h3>
             {recentPacis.length > 0 && (
-              <Link to="/paci" className="text-xs font-medium text-accent hover:text-accent/80 transition-colors">
+              <Link to="/paci" className="text-xs font-semibold text-accent hover:text-accent-dark transition-colors">
                 Ver todos →
               </Link>
             )}
@@ -203,26 +203,26 @@ export default function DashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {recentPacis.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="py-2.5 font-medium text-slate-900">{p.estudiante_nombre}</td>
-                      <td className="py-2.5 text-slate-600">{p.fecha_emision}</td>
-                      <td className="py-2.5">
+                    <tr key={p.id} className="hover:bg-primary/3 transition-colors">
+                      <td className="py-3 font-semibold text-slate-900">{p.estudiante_nombre}</td>
+                      <td className="py-3 text-slate-600">{p.fecha_emision}</td>
+                      <td className="py-3">
                         <Badge color={p.formato_generado === 'Compacto' ? 'accent' : p.formato_generado === 'Modular' ? 'warning' : 'primary'}>
                           {p.formato_generado}
                         </Badge>
                       </td>
-                      <td className="py-2.5">
-                        <div className="flex items-center justify-center gap-2">
+                      <td className="py-3">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => navigate(`/paci/${p.id}`)}
-                            className="rounded-lg p-1.5 text-slate-400 hover:bg-accent/10 hover:text-accent transition-colors cursor-pointer"
+                            className="rounded-xl p-2 text-slate-400 hover:bg-accent/10 hover:text-accent transition-all duration-200 cursor-pointer"
                             title="Ver detalle"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => handleDownloadPdf(p.id)}
-                            className="rounded-lg p-1.5 text-slate-400 hover:bg-success/10 hover:text-success transition-colors cursor-pointer"
+                            className="rounded-xl p-2 text-slate-400 hover:bg-green/10 hover:text-green-dark transition-all duration-200 cursor-pointer"
                             title="Descargar PDF"
                           >
                             <Download className="h-4 w-4" />

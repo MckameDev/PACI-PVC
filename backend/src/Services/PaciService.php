@@ -42,6 +42,11 @@ class PaciService
             $params[':estudiante_id']  = $filters['estudiante_id'];
         }
 
+        if (!empty($filters['asignatura_id'])) {
+            $where[]                   = 'p.asignatura_id = :asignatura_id';
+            $params[':asignatura_id']  = $filters['asignatura_id'];
+        }
+
         $whereStr = implode(' AND ', $where);
         $offset   = ($page - 1) * $limit;
 
@@ -51,10 +56,11 @@ class PaciService
         $total = (int) $countStmt->fetch()['total'];
 
         $sql = "SELECT p.*, e.nombre_completo as estudiante_nombre, e.rut as estudiante_rut,
-                       u.nombre as usuario_nombre
+                       u.nombre as usuario_nombre, a.nombre as asignatura_nombre
                 FROM paci p
                 LEFT JOIN estudiantes e ON e.id = p.estudiante_id
                 LEFT JOIN users u ON u.id = p.usuario_id
+                LEFT JOIN asignaturas a ON a.id = p.asignatura_id
                 WHERE {$whereStr}
                 ORDER BY p.created_at DESC
                 LIMIT :limit OFFSET :offset";
@@ -85,12 +91,14 @@ class PaciService
                        cn.nombre as estudiante_curso, cn.valor_numerico as estudiante_curso_valor,
                        est.nombre as establecimiento_nombre, est.region as establecimiento_region,
                        est.comuna as establecimiento_comuna,
-                       u.nombre as usuario_nombre, u.rol as usuario_rol
+                       u.nombre as usuario_nombre, u.rol as usuario_rol,
+                       a.nombre as asignatura_nombre, a.codigo as asignatura_codigo
                 FROM paci p
                 LEFT JOIN estudiantes e ON e.id = p.estudiante_id
                 LEFT JOIN cursos_niveles cn ON cn.id = e.curso_nivel_id
                 LEFT JOIN establecimientos est ON est.id = e.establecimiento_id
                 LEFT JOIN users u ON u.id = p.usuario_id
+                LEFT JOIN asignaturas a ON a.id = p.asignatura_id
                 WHERE p.id = :id AND p.vigencia = 1";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':id' => $id]);
@@ -166,6 +174,7 @@ class PaciService
     {
         $validator = Validator::make($data, [
             'estudiante_id'   => 'required|uuid',
+            'asignatura_id'   => 'required|uuid',
             'fecha_emision'   => 'required|date',
             'formato_generado'=> 'required|in:Compacto,Completo,Modular',
             'anio_escolar'    => 'nullable|string|max:20',
@@ -183,6 +192,23 @@ class PaciService
             Response::error('El estudiante referenciado no existe', 404);
         }
 
+        // Validar que la asignatura exista
+        $asigStmt = $this->db->prepare("SELECT id FROM asignaturas WHERE id = :id AND vigencia = 1 LIMIT 1");
+        $asigStmt->execute([':id' => $data['asignatura_id']]);
+        if (!$asigStmt->fetchColumn()) {
+            Response::error('La asignatura referenciada no existe', 404);
+        }
+
+        // Detectar duplicado: mismo estudiante + asignatura + año activo
+        $anio = $data['anio_escolar'] ?? date('Y');
+        $dupStmt = $this->db->prepare(
+            "SELECT id FROM paci WHERE estudiante_id = :est AND asignatura_id = :asig AND anio_escolar = :anio AND vigencia = 1 LIMIT 1"
+        );
+        $dupStmt->execute([':est' => $data['estudiante_id'], ':asig' => $data['asignatura_id'], ':anio' => $anio]);
+        if ($dupStmt->fetchColumn()) {
+            Response::error('Ya existe un PACI activo para este estudiante, asignatura y año escolar', 409);
+        }
+
         if (!empty($data['trayectoria']) && !is_array($data['trayectoria'])) {
             Response::error('El campo trayectoria debe ser un array', 400);
         }
@@ -191,11 +217,11 @@ class PaciService
 
         try {
             $paciId = UUID::generate();
-            $sqlPaci = "INSERT INTO paci (id, estudiante_id, usuario_id, fecha_emision, formato_generado,
+            $sqlPaci = "INSERT INTO paci (id, estudiante_id, asignatura_id, usuario_id, fecha_emision, formato_generado,
                         anio_escolar, profesor_jefe, profesor_asignatura, educador_diferencial,
                         aplica_paec, paec_activadores, paec_estrategias, paec_desregulacion,
                         vigencia, created_by, updated_by)
-                        VALUES (:id, :estudiante_id, :usuario_id, :fecha_emision, :formato_generado,
+                        VALUES (:id, :estudiante_id, :asignatura_id, :usuario_id, :fecha_emision, :formato_generado,
                         :anio_escolar, :profesor_jefe, :profesor_asignatura, :educador_diferencial,
                         :aplica_paec, :paec_activadores, :paec_estrategias, :paec_desregulacion,
                         1, :created_by, :updated_by)";
@@ -204,10 +230,11 @@ class PaciService
             $stmtPaci->execute([
                 ':id'                  => $paciId,
                 ':estudiante_id'       => $data['estudiante_id'],
+                ':asignatura_id'       => $data['asignatura_id'],
                 ':usuario_id'          => $userId,
                 ':fecha_emision'       => $data['fecha_emision'],
                 ':formato_generado'    => $data['formato_generado'],
-                ':anio_escolar'        => $data['anio_escolar'] ?? null,
+                ':anio_escolar'        => $data['anio_escolar'] ?? $anio,
                 ':profesor_jefe'       => $data['profesor_jefe'] ?? null,
                 ':profesor_asignatura' => $data['profesor_asignatura'] ?? null,
                 ':educador_diferencial'=> $data['educador_diferencial'] ?? null,

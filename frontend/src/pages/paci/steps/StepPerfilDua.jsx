@@ -3,6 +3,22 @@ import api from '../../../api/axios';
 import Card from '../../../components/ui/Card';
 import TextArea from '../../../components/ui/TextArea';
 import Badge from '../../../components/ui/Badge';
+import { ChevronDown } from 'lucide-react';
+
+const BARRERAS_PREDEFINIDAS = [
+  'Dificultad para mantener la atención sostenida',
+  'Baja tolerancia a la frustración',
+  'Dificultad en el procesamiento de información verbal',
+  'Escaso apoyo familiar para tareas escolares',
+  'Dificultad para seguir instrucciones complejas',
+  'Problemas de regulación emocional',
+  'Dificultad en la motricidad fina',
+  'Dificultad en la comprensión lectora',
+  'Resistencia al cambio de rutinas',
+  'Dificultad en la interacción social con pares',
+  'Fatiga cognitiva rápida',
+  'Dificultad para organizarse y planificar',
+];
 
 // ─── CheckboxGroup con catálogo dinámico ─────────────────────
 
@@ -160,11 +176,11 @@ export default function StepPerfilDua({ data, onChange }) {
         </h3>
         <CheckboxGroup
           label="Seleccione las principales fortalezas"
-          hint="Máximo 3. Orientarán las estrategias de enseñanza sugeridas."
+          hint="Seleccione entre 4 y 5. Orientarán las estrategias de enseñanza sugeridas."
           items={catFortalezas}
           selectedIds={data.fortaleza_ids || []}
           onChange={handleMatrix('fortaleza_ids', 'fortalezas', catFortalezas)}
-          maxItems={3}
+          maxItems={5}
         />
       </Card>
 
@@ -175,11 +191,11 @@ export default function StepPerfilDua({ data, onChange }) {
         </h3>
         <CheckboxGroup
           label="Seleccione las principales barreras"
-          hint="Máximo 3. Identifican los obstáculos principales del proceso educativo."
+          hint="Seleccione entre 4 y 5. Identifican los obstáculos principales del proceso educativo."
           items={catBarreras}
           selectedIds={data.barrera_ids || []}
           onChange={handleMatrix('barrera_ids', 'barreras', catBarreras)}
-          maxItems={3}
+          maxItems={5}
         />
       </Card>
 
@@ -190,11 +206,11 @@ export default function StepPerfilDua({ data, onChange }) {
         </h3>
         <CheckboxGroup
           label="¿El estudiante requiere trabajar habilidades base?"
-          hint="Máximo 2. Permite identificar si se necesitan OA de niveles anteriores."
+          hint="Seleccione entre 3 y 4. Permite identificar si se necesitan OA de niveles anteriores."
           items={catAcceso}
           selectedIds={data.acceso_curricular_ids || []}
           onChange={handleMatrix('acceso_curricular_ids', 'acceso_curricular', catAcceso)}
-          maxItems={2}
+          maxItems={4}
         />
       </Card>
 
@@ -231,16 +247,43 @@ export default function StepPerfilDua({ data, onChange }) {
         <h3 className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2">
           5. Barreras Personalizadas
         </h3>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-slate-700">
+            Seleccione barreras predefinidas o escriba una personalizada
+          </label>
+          <div className="relative">
+            <select
+              className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-700 appearance-none cursor-pointer hover:border-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              value=""
+              onChange={(e) => {
+                if (e.target.value) {
+                  const current = dua.barreras_personalizadas || '';
+                  const newVal = current ? `${current}\n${e.target.value}` : e.target.value;
+                  handleDua('barreras_personalizadas', newVal);
+                  e.target.value = '';
+                }
+              }}
+            >
+              <option value="">— Seleccione una barrera predefinida —</option>
+              {BARRERAS_PREDEFINIDAS.map((b, i) => (
+                <option key={i} value={b}>{b}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+          </div>
+        </div>
+
         <TextArea
           id="barreras_personalizadas"
-          label="Describa barreras específicas no listadas"
-          placeholder="Escriba aquí barreras particulares del estudiante que no aparecen en las opciones anteriores..."
+          label="Barreras seleccionadas / personalizadas"
+          placeholder="Las barreras seleccionadas aparecerán aquí. También puede escribir barreras adicionales..."
           value={dua.barreras_personalizadas || ''}
           onChange={(e) => handleDua('barreras_personalizadas', e.target.value)}
-          rows={3}
+          rows={4}
         />
         <p className="text-xs text-slate-400">
-          Este espacio es para registrar barreras únicas del estudiante que requieran atención especial.
+          Seleccione del desplegable o escriba directamente. Puede combinar ambas opciones.
         </p>
       </Card>
 

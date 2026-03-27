@@ -17,7 +17,7 @@ export default function HelpButton({ title, description, meaning }) {
       <button
         onClick={() => setOpen(true)}
         title={`Ayuda: ${title}`}
-        className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-slate-300 bg-white text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer shadow-sm"
+        className="inline-flex items-center justify-center h-9 w-9 rounded-xl border border-slate-200 bg-white text-slate-400 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all duration-200 cursor-pointer shadow-sm"
       >
         <HelpCircle className="h-4 w-4" />
       </button>
@@ -25,7 +25,7 @@ export default function HelpButton({ title, description, meaning }) {
       <Modal open={open} onClose={() => setOpen(false)} title={`¿Cómo funciona: ${title}?`} size="md">
         <div className="space-y-5">
           <div className="flex gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary mt-0.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-light text-white mt-0.5 shadow-md shadow-primary/20">
               <BookOpen className="h-5 w-5" />
             </span>
             <div>
@@ -35,7 +35,7 @@ export default function HelpButton({ title, description, meaning }) {
           </div>
 
           <div className="flex gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent mt-0.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-accent-dark text-white mt-0.5 shadow-md shadow-accent/20">
               <Lightbulb className="h-5 w-5" />
             </span>
             <div>

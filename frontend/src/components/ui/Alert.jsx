@@ -9,9 +9,9 @@ const icons = {
 
 const colors = {
   error: 'border-danger/20 bg-danger/5 text-danger',
-  success: 'border-success/20 bg-success/5 text-success',
-  info: 'border-accent/20 bg-accent/5 text-accent',
-  warning: 'border-warning/20 bg-warning/5 text-warning',
+  success: 'border-green/20 bg-green/5 text-green-dark',
+  info: 'border-accent/20 bg-accent/5 text-accent-dark',
+  warning: 'border-orange/20 bg-orange/5 text-orange-dark',
 };
 
 export default function Alert({ type = 'info', message, onClose, className = '' }) {
@@ -20,11 +20,11 @@ export default function Alert({ type = 'info', message, onClose, className = '' 
   const Icon = icons[type];
 
   return (
-    <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${colors[type]} ${className}`}>
+    <div className={`flex items-start gap-3 rounded-xl border px-4 py-3 animate-fade-in-up ${colors[type]} ${className}`}>
       <Icon className="h-5 w-5 shrink-0 mt-0.5" />
-      <p className="flex-1 text-sm">{message}</p>
+      <p className="flex-1 text-sm font-medium">{message}</p>
       {onClose && (
-        <button onClick={onClose} className="shrink-0 opacity-60 hover:opacity-100 cursor-pointer transition-opacity">
+        <button onClick={onClose} className="shrink-0 rounded-lg p-1 opacity-60 hover:opacity-100 hover:bg-white/50 cursor-pointer transition-all">
           <X className="h-4 w-4" />
         </button>
       )}
