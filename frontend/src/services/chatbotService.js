@@ -29,3 +29,5 @@ export const createOpcion = (data) => api.post('/admin/chatbot/opciones', data);
 export const updateOpcion = (id, data) => api.put(`/admin/chatbot/opciones/${id}`, data);
 
 export const toggleOpcion = (id) => api.patch(`/admin/chatbot/opciones/${id}`);
+
+export const importChatbotExcel = (rows) => api.post('/admin/chatbot/import', { rows });

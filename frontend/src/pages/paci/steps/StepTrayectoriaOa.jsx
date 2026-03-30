@@ -24,6 +24,7 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
   const [coreSugerencias, setCoreSugerencias] = useState({});
 
   const trayectoria = data.trayectoria || [];
+  const paciAsignaturaId = data.asignatura_id || '';
 
   // Load catalogues
   useEffect(() => {
@@ -42,6 +43,19 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
     load();
   }, []);
 
+  // Pre-load ejes for the PACI-level asignatura as soon as it is known
+  useEffect(() => {
+    if (!paciAsignaturaId) return;
+    const key = paciAsignaturaId;
+    api.get('/oa/ejes', { params: { asignatura_id: paciAsignaturaId } })
+      .then(res => setEjesPorAsignatura(prev => {
+        if (prev[key]?.length > 0) return prev;
+        return { ...prev, [key]: res.data.data || [] };
+      }))
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paciAsignaturaId]);
+
   const sortedCursos = [...cursosNiveles].sort((a, b) => (a.valor_numerico || 0) - (b.valor_numerico || 0));
 
   // Get student's official level numeric value
@@ -51,7 +65,7 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
   const loadEjes = useCallback(async (asignaturaId, index) => {
     if (!asignaturaId) return;
     const key = asignaturaId;
-    if (ejesPorAsignatura[key]) return;
+    if (ejesPorAsignatura[key]?.length > 0) return;
 
     setLoadingEjes((prev) => ({ ...prev, [index]: true }));
     try {
@@ -65,25 +79,22 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
     }
   }, [ejesPorAsignatura]);
 
-  // Load OAs by asignatura, eje y nivel (filtro en cascada)
-  const loadOas = useCallback(async (asignaturaId, eje, nivelId, index) => {
+  // Load OAs by asignatura + nivel (ambos requeridos, filtro por ID)
+  const loadOas = useCallback(async (asignaturaId, nivelId, index) => {
     if (!asignaturaId || !nivelId) return;
-    const key = `${asignaturaId}_${eje || 'all'}_${nivelId}`;
-    if (oaList[key]) return;
+    const key = `${asignaturaId}_${nivelId}`;
+    if (oaList[key]?.length > 0) return;
 
     setLoadingOa((prev) => ({ ...prev, [index]: true }));
     try {
-      const params = {
-        asignatura_id: asignaturaId,
-        nivel_trabajo_id: nivelId,
-        limit: 200
-      };
-      if (eje) params.eje = eje;
-      
-      const res = await api.get('/oa', { params });
-      setOaList((prev) => ({ ...prev, [key]: res.data.data?.items || [] }));
+      const res = await api.get('/oa', {
+        params: { asignatura_id: asignaturaId, nivel_trabajo_id: nivelId, limit: 500 },
+      });
+      const items = res.data.data?.items || [];
+      setOaList((prev) => ({ ...prev, [key]: items }));
     } catch {
       console.error('Error loading OAs');
+      setOaList((prev) => ({ ...prev, [key]: [] }));
     } finally {
       setLoadingOa((prev) => ({ ...prev, [index]: false }));
     }
@@ -179,14 +190,14 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
             'La presente adecuación curricular significativa se fundamenta en evaluación diagnóstica funcional que evidencia desfase en habilidades estructurantes del aprendizaje, requiriendo intervención en niveles previos para asegurar progresión, acceso curricular y continuidad formativa.';
         }
 
-        // Load OAs with the new nivel_trabajo_id
+        // Load OAs for this asignatura + nivel combination
         if (newTray[index]._asignatura_id) {
-          loadOas(newTray[index]._asignatura_id, newTray[index]._eje, value, index);
+          loadOas(newTray[index]._asignatura_id, value, index);
         }
 
         // Load eval suggestions for Significativa
         if (dif >= 3) {
-          const oa = findOa(newTray[index]._asignatura_id, newTray[index]._eje, value, newTray[index].oa_id);
+          const oa = findOa(newTray[index]._asignatura_id, value, newTray[index].oa_id);
           if (oa?.habilidad_core) {
             loadEvalSugerencias(index, oa.habilidad_core, value, 'Significativa');
           }
@@ -204,13 +215,9 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
       newTray[index].tipo_adecuacion = 'Acceso';
     }
 
-    // When eje changes, reset OA
+    // When eje changes, reset OA (eje is client-side filter only)
     if (field === '_eje') {
       newTray[index].oa_id = '';
-      // Load OAs if nivel is already selected
-      if (newTray[index]._asignatura_id && newTray[index].nivel_trabajo_id) {
-        loadOas(newTray[index]._asignatura_id, value, newTray[index].nivel_trabajo_id, index);
-      }
     }
 
     // When OA changes, load indicadores
@@ -227,8 +234,9 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
     onChange('trayectoria', [
       ...trayectoria,
       {
-        _asignatura_id: '',
+        _asignatura_id: paciAsignaturaId,
         _eje: '',
+        _unidad: '',
         oa_id: '',
         nivel_trabajo_id: '',
         diferencia_calculada: 0,
@@ -273,8 +281,8 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
     onChange('trayectoria', newTray);
   };
 
-  const findOa = (asignaturaId, eje, nivelId, oaId) => {
-    const key = `${asignaturaId}_${eje || 'all'}_${nivelId}`;
+  const findOa = (asignaturaId, nivelId, oaId) => {
+    const key = `${asignaturaId}_${nivelId}`;
     const oas = oaList[key] || [];
     return oas.find((o) => o.id === oaId);
   };
@@ -321,9 +329,10 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
       {/* OA Items */}
       {trayectoria.map((item, index) => {
         const ejesOptions = ejesPorAsignatura[item._asignatura_id] || [];
-        const oaKey = `${item._asignatura_id}_${item._eje || 'all'}_${item.nivel_trabajo_id}`;
-        const oas = oaList[oaKey] || [];
-        const selectedOa = findOa(item._asignatura_id, item._eje, item.nivel_trabajo_id, item.oa_id);
+        const oaKey = `${item._asignatura_id}_${item.nivel_trabajo_id}`;
+        const allOas = oaList[oaKey] || [];
+        const oas = item._eje ? allOas.filter(o => o.eje === item._eje) : allOas;
+        const selectedOa = findOa(item._asignatura_id, item.nivel_trabajo_id, item.oa_id);
         const isSignificativa = item.tipo_adecuacion === 'Significativa';
         const sug = evalSugerencias[index];
         const indicadores = indicadoresPorOa[item.oa_id] || { L: [], ED: [], NL: [] };
@@ -355,32 +364,21 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
               </button>
             </div>
 
-            {/* Cascada: Asignatura -> Eje -> Nivel -> OA */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <SearchSelect
-                id={`asignatura_${index}`}
-                label="1. Asignatura *"
-                placeholder="Seleccione asignatura"
-                value={item._asignatura_id}
-                onChange={(val) => updateItem(index, '_asignatura_id', val)}
-                options={asignaturas.map((a) => ({ value: a.id, label: a.nombre }))}
-              />
-              
-              <SearchSelect
-                id={`eje_${index}`}
-                label="2. Eje (opcional)"
-                placeholder={loadingEjes[index] ? 'Cargando ejes...' : ejesOptions.length === 0 ? 'Sin ejes disponibles' : 'Seleccione eje'}
-                value={item._eje || ''}
-                onChange={(val) => updateItem(index, '_eje', val)}
-                options={ejesOptions.map((e) => ({ value: e.eje || e.nombre, label: e.eje || e.nombre }))}
-                disabled={!item._asignatura_id || loadingEjes[index]}
-              />
-            </div>
+            {/* Cascada: Eje -> Nivel -> OA (Asignatura ya seleccionada en Paso 1) */}
+            <SearchSelect
+              id={`eje_${index}`}
+              label="1. Eje (opcional)"
+              placeholder={loadingEjes[index] ? 'Cargando ejes...' : ejesOptions.length === 0 ? 'Sin ejes disponibles para esta asignatura' : 'Seleccione eje'}
+              value={item._eje || ''}
+              onChange={(val) => updateItem(index, '_eje', val)}
+              options={ejesOptions.map((e) => ({ value: e.eje || e.nombre, label: e.eje || e.nombre }))}
+              disabled={!!loadingEjes[index]}
+            />
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <SearchSelect
                 id={`nivel_${index}`}
-                label="3. Nivel de Trabajo *"
+                label="2. Nivel de Trabajo *"
                 placeholder="Seleccione nivel"
                 value={item.nivel_trabajo_id}
                 onChange={(val) => updateItem(index, 'nivel_trabajo_id', val)}
@@ -389,6 +387,25 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
                   label: `${c.nombre} (valor: ${c.valor_numerico})`,
                 }))}
               />
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Unidad</label>
+                <select
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  value={item._unidad || ''}
+                  onChange={(e) => updateItem(index, '_unidad', e.target.value)}
+                >
+                  <option value="">Sin unidad</option>
+                  <option value="Unidad 1">Unidad 1</option>
+                  <option value="Unidad 2">Unidad 2</option>
+                  <option value="Unidad 3">Unidad 3</option>
+                  <option value="Unidad 4">Unidad 4</option>
+                  <option value="Unidad 5">Unidad 5</option>
+                  <option value="Unidad 6">Unidad 6</option>
+                  <option value="Unidad 7">Unidad 7</option>
+                  <option value="Unidad 8">Unidad 8</option>
+                </select>
+              </div>
               
               <div className="flex items-end">
                 <div className="rounded-lg bg-slate-50 p-3 w-full">
@@ -413,10 +430,17 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
               </div>
             </div>
 
+            {/* Unidad badge */}
+            {item._unidad && (
+              <div className="flex items-center gap-2">
+                <Badge color="accent">{item._unidad}</Badge>
+              </div>
+            )}
+
             <SearchSelect
               id={`oa_${index}`}
-              label="4. Objetivo de Aprendizaje *"
-              placeholder={loadingOa[index] ? 'Cargando OAs...' : oas.length === 0 ? 'Complete asignatura y nivel primero' : 'Seleccione OA'}
+              label="3. Objetivo de Aprendizaje *"
+              placeholder={loadingOa[index] ? 'Cargando OAs...' : (!item._asignatura_id || !item.nivel_trabajo_id) ? 'Seleccione asignatura y nivel primero' : oas.length === 0 && item._eje ? `No hay OAs para el eje "${item._eje}"` : oas.length === 0 ? 'No se encontraron OAs para esta combinación' : 'Seleccione OA'}
               value={item.oa_id}
               onChange={(val) => updateItem(index, 'oa_id', val)}
               options={oas.map((o) => ({

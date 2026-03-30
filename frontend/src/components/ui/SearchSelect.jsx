@@ -93,11 +93,11 @@ export default function SearchSelect({
           disabled={disabled}
           onClick={() => !disabled && setOpen(!open)}
           className={`
-            flex w-full items-center justify-between rounded-lg border bg-white px-3 py-2.5 text-sm text-left
-            transition-colors duration-200 cursor-pointer
+            flex w-full items-center justify-between rounded-xl border bg-white px-3.5 py-2.5 text-sm text-left
+            transition-all duration-200 cursor-pointer
             ${disabled ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : ''}
-            ${open ? 'border-primary ring-2 ring-primary/20' : ''}
-            ${error ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-slate-300'}
+            ${open ? 'border-primary ring-2 ring-primary/20 shadow-sm' : ''}
+            ${error ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-slate-300 hover:border-slate-400'}
           `}
         >
           <span className={selectedOption ? 'text-slate-900 truncate pr-6' : 'text-slate-400 truncate pr-6'}>
@@ -120,7 +120,7 @@ export default function SearchSelect({
 
         {/* Dropdown */}
         {open && (
-          <div className="absolute z-50 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="absolute z-50 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-xl animate-scale-in">
             {/* Search input */}
             <div className="relative border-b border-slate-200 p-2">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -146,10 +146,10 @@ export default function SearchSelect({
                     <li
                       key={opt.value}
                       onClick={() => handleSelect(opt.value)}
-                      className={`cursor-pointer px-3 py-2 text-sm transition-colors ${
+                      className={`cursor-pointer px-3 py-2 text-sm transition-all ${
                         isSelected
-                          ? 'bg-primary/10 text-primary font-medium'
-                          : 'text-slate-700 hover:bg-slate-50'
+                          ? 'bg-primary/10 text-primary font-semibold'
+                          : 'text-slate-700 hover:bg-primary/5'
                       }`}
                     >
                       {opt.label}

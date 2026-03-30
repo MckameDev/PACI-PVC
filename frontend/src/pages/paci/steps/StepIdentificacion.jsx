@@ -9,17 +9,20 @@ import Spinner from '../../../components/ui/Spinner';
 export default function StepIdentificacion({ data, onChange }) {
   const [estudiantes, setEstudiantes] = useState([]);
   const [profesores, setProfesores] = useState([]);
+  const [asignaturas, setAsignaturas] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [estRes, profRes] = await Promise.all([
+        const [estRes, profRes, asigRes] = await Promise.all([
           api.get('/estudiantes', { params: { limit: 200 } }),
           api.get('/profesores', { params: { limit: 200 } }),
+          api.get('/asignaturas', { params: { limit: 200 } }),
         ]);
         setEstudiantes(estRes.data.data?.items || []);
         setProfesores(profRes.data.data?.items || []);
+        setAsignaturas(asigRes.data.data?.items || asigRes.data.data || []);
       } catch {
         console.error('Error loading data');
       } finally {
@@ -76,6 +79,19 @@ export default function StepIdentificacion({ data, onChange }) {
           options={estudiantes.map((est) => ({
             value: est.id,
             label: `${est.nombre_completo} — ${est.rut}`,
+          }))}
+          required
+        />
+
+        <SearchSelect
+          id="asignatura_id"
+          label="Asignatura *"
+          placeholder="Seleccione la asignatura"
+          value={data.asignatura_id}
+          onChange={(val) => onChange('asignatura_id', val)}
+          options={asignaturas.map((a) => ({
+            value: a.id,
+            label: a.nombre,
           }))}
           required
         />

@@ -8,8 +8,9 @@ export default function Spinner({ className = '', size = 'md' }) {
   };
 
   return (
-    <div className={`flex items-center justify-center ${className}`}>
+    <div className={`flex flex-col items-center justify-center gap-3 ${className}`}>
       <Loader2 className={`animate-spin text-primary ${sizes[size]}`} />
+      {size === 'lg' && <p className="text-sm text-secondary font-medium animate-pulse">Cargando...</p>}
     </div>
   );
 }

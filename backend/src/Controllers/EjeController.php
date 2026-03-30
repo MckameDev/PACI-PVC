@@ -44,7 +44,7 @@ class EjeController
     // POST /api/ejes
     public function store(array $params): void
     {
-        AuthMiddleware::requireRole('Admin');
+        AuthMiddleware::requireRole(['Admin']);
         $data   = json_decode(file_get_contents('php://input'), true) ?? [];
         $userId = AuthMiddleware::getUserId();
         $item   = $this->service->create($data, $userId);
@@ -54,7 +54,7 @@ class EjeController
     // PUT /api/ejes/{id}
     public function update(array $params): void
     {
-        AuthMiddleware::requireRole('Admin');
+        AuthMiddleware::requireRole(['Admin']);
         $data   = json_decode(file_get_contents('php://input'), true) ?? [];
         $userId = AuthMiddleware::getUserId();
         $item   = $this->service->update($params['id'], $data, $userId);
@@ -68,7 +68,7 @@ class EjeController
     // PATCH /api/ejes/{id}
     public function toggleVigencia(array $params): void
     {
-        AuthMiddleware::requireRole('Admin');
+        AuthMiddleware::requireRole(['Admin']);
         $userId = AuthMiddleware::getUserId();
         $ok     = $this->service->softDelete($params['id'], $userId);
         if (!$ok) {

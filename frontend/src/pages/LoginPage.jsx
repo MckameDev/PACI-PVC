@@ -37,13 +37,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-dark via-primary to-primary-light p-4">
-      <div className="w-full max-w-md">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-primary-dark via-primary to-accent p-4 relative overflow-hidden">
+      {/* Decorative background circles */}
+      <div className="absolute top-[-10%] right-[-5%] w-96 h-96 rounded-full bg-green/10 blur-3xl" />
+      <div className="absolute bottom-[-10%] left-[-5%] w-96 h-96 rounded-full bg-orange/10 blur-3xl" />
+      <div className="absolute top-[40%] left-[20%] w-64 h-64 rounded-full bg-accent/10 blur-3xl" />
+
+      <div className="w-full max-w-md relative z-10">
         {/* Card */}
-        <div className="rounded-2xl bg-white px-8 py-10 shadow-2xl">
+        <div className="rounded-3xl bg-white/95 backdrop-blur-md px-8 py-10 shadow-2xl shadow-black/20 animate-scale-in">
           {/* Header */}
           <div className="mb-8 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary shadow-lg">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-accent shadow-lg shadow-primary/30">
               <GraduationCap className="h-8 w-8 text-white" />
             </div>
             <h1 className="text-2xl font-bold text-slate-900">PACI PVC</h1>
@@ -54,7 +59,7 @@ export default function LoginPage() {
 
           {/* Error */}
           {error && (
-            <div className="mb-6 rounded-lg border border-danger/20 bg-danger/5 px-4 py-3 text-sm text-danger">
+            <div className="mb-6 rounded-xl border border-danger/20 bg-danger/5 px-4 py-3 text-sm font-medium text-danger animate-fade-in-up">
               {error}
             </div>
           )}
@@ -96,13 +101,13 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-xs text-white/50">
+        <p className="mt-8 text-center text-xs text-white/50">
           Desarrollado por Team PVC{' '}
           <a
             href="https://www.teampvc.cl"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-2 hover:text-white/70 transition-colors"
+            className="underline underline-offset-2 hover:text-white/80 transition-colors font-medium"
           >
             www.teampvc.cl
           </a>

@@ -166,12 +166,13 @@ class OaService
         return $this->model->softDelete($id, $userId);
     }
 
-    // Retorna ejes para una asignatura — prioriza catálogo de ejes, fallback a texto libre en oa_db
+    // Retorna ejes para una asignatura — combina catálogo de ejes + texto libre en oa_db
     public function getEjes(string $asignaturaId): array
     {
         $db = $this->model->getDb();
+        $ejesMap = [];
 
-        // Primero intentar con catálogo formal de ejes
+        // 1. Ejes desde catálogo formal
         $sqlCat = "SELECT id, nombre as eje FROM ejes
                    WHERE asignatura_id = :asignatura_id AND vigencia = 1
                    ORDER BY nombre ASC";
@@ -179,16 +180,24 @@ class OaService
         $stmtCat->execute([':asignatura_id' => $asignaturaId]);
         $catalogEjes = $stmtCat->fetchAll(PDO::FETCH_ASSOC);
 
-        if (!empty($catalogEjes)) {
-            return $catalogEjes;
+        foreach ($catalogEjes as $e) {
+            $ejesMap[$e['eje']] = $e;
         }
 
-        // Fallback: ejes desde texto libre en oa_db
+        // 2. Ejes desde texto libre en oa_db (complementa el catálogo)
         $sql = "SELECT DISTINCT eje FROM oa_db
                 WHERE asignatura_id = :asignatura_id AND eje IS NOT NULL AND eje != '' AND vigencia = 1
                 ORDER BY eje ASC";
         $stmt = $db->prepare($sql);
         $stmt->execute([':asignatura_id' => $asignaturaId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $oaEjes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($oaEjes as $e) {
+            if (!isset($ejesMap[$e['eje']])) {
+                $ejesMap[$e['eje']] = ['eje' => $e['eje']];
+            }
+        }
+
+        return array_values($ejesMap);
     }
 }

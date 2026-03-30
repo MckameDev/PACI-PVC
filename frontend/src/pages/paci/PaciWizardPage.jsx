@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Save, CheckCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, CheckCircle, FileDown, Loader2 } from 'lucide-react';
 import api from '../../api/axios';
 import useAuthStore from '../../stores/useAuthStore';
 import Button from '../../components/ui/Button';
 import StepIndicator from '../../components/ui/StepIndicator';
 import Alert from '../../components/ui/Alert';
+import Modal from '../../components/ui/Modal';
 
 import StepIdentificacion from './steps/StepIdentificacion';
 import StepPerfilDua from './steps/StepPerfilDua';
@@ -31,14 +32,50 @@ const COMPLETO_STEPS = [
   { key: 'resumen', label: 'Resumen' },
 ];
 
+const defaultFormData = {
+  estudiante_id: '',
+  asignatura_id: '',
+  fecha_emision: new Date().toISOString().slice(0, 10),
+  formato_generado: 'Compacto',
+  anio_escolar: new Date().getFullYear().toString(),
+  profesor_jefe: '',
+  profesor_asignatura: '',
+  educador_diferencial: '',
+  aplica_paec: 0,
+  paec_activadores: '',
+  paec_estrategias: '',
+  paec_desregulacion: '',
+  paec_variables: [],
+  perfil_dua: {
+    fortalezas: '',
+    barreras: '',
+    barreras_personalizadas: '',
+    acceso_curricular: '',
+    preferencias_representacion: '',
+    preferencias_expresion: '',
+    preferencias_motivacion: '',
+    habilidades_base: '',
+  },
+  fortaleza_ids: [],
+  barrera_ids: [],
+  estrategia_dua_ids: [],
+  acceso_curricular_ids: [],
+  habilidad_base_ids: [],
+  trayectoria: [],
+};
+
 export default function PaciWizardPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
 
+  // ---------- State ----------
   const [currentStep, setCurrentStep] = useState(1);
+  const [formData, setFormData] = useState(defaultFormData);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
   const [alert, setAlert] = useState({ type: '', message: '' });
   const [savedPaciId, setSavedPaciId] = useState(null);
+<<<<<<< HEAD
 
   // All PACI data in one state
   const [formData, setFormData] = useState({
@@ -94,39 +131,129 @@ export default function PaciWizardPage() {
   }, [currentStep, activeSteps.length]);
 
   // Store full student data for display in steps
+=======
+>>>>>>> e124a304308e187a24bbba7f7c3207f75643da57
   const [estudiante, setEstudiante] = useState(null);
 
-  // Load student details when selected
+  // Draft-related state
+  const [draftLoading, setDraftLoading] = useState(true);
+  const [draftModal, setDraftModal] = useState(false);
+  const [draftMeta, setDraftMeta] = useState(null); // { nombre, rut, asignatura, paso }
+  const draftDataRef = useRef(null); // holds parsed form_data until user decides
+  const draftReady = useRef(false); // prevents auto-save until draft resolution
+
+  // ---------- Load draft from server on mount ----------
   useEffect(() => {
-    if (!formData.estudiante_id) {
-      setEstudiante(null);
-      return;
-    }
-    const load = async () => {
+    let cancelled = false;
+    const fetchDraft = async () => {
       try {
-        const res = await api.get(`/estudiantes/${formData.estudiante_id}`);
-        setEstudiante(res.data.data);
+        const res = await api.get('/paci-borrador');
+        const d = res.data.data;
+        if (cancelled) return;
+
+        const nombre = d.estudiante_nombre || 'Sin nombre';
+
+        setDraftMeta({
+          nombre,
+          rut: d.estudiante_rut || '—',
+          asignatura: d.asignatura_nombre || '—',
+          paso: d.paso_actual || 1,
+        });
+        draftDataRef.current = { formData: d.form_data, step: d.paso_actual || 1 };
+        setDraftModal(true);
       } catch {
-        setEstudiante(null);
+        // 404 = no draft, just start fresh
+        draftReady.current = true;
+      } finally {
+        if (!cancelled) setDraftLoading(false);
       }
     };
-    load();
+    fetchDraft();
+    return () => { cancelled = true; };
+  }, []);
+
+  // ---------- Draft modal handlers ----------
+  const handleContinueDraft = () => {
+    if (draftDataRef.current) {
+      setFormData({ ...defaultFormData, ...draftDataRef.current.formData });
+      setCurrentStep(draftDataRef.current.step);
+    }
+    draftDataRef.current = null;
+    draftReady.current = true;
+    setDraftModal(false);
+  };
+
+  const handleDiscardDraft = async () => {
+    try { await api.patch('/paci-borrador'); } catch { /* ignore */ }
+    draftDataRef.current = null;
+    draftReady.current = true;
+    setDraftModal(false);
+  };
+
+  // ---------- Save draft to server ----------
+  const saveDraft = useCallback(async (fd, step) => {
+    if (!draftReady.current) return;
+    try {
+      await api.put('/paci-borrador', {
+        paso_actual: step,
+        form_data: fd,
+        estudiante_id: fd.estudiante_id || null,
+        asignatura_id: fd.asignatura_id || null,
+      });
+    } catch { /* silent */ }
+  }, []);
+
+  const deleteDraft = useCallback(async () => {
+    try { await api.patch('/paci-borrador'); } catch { /* ignore */ }
+  }, []);
+
+  // Button: manual save draft
+  const handleSaveDraft = async () => {
+    setSavingDraft(true);
+    await saveDraft(formData, currentStep);
+    setSavingDraft(false);
+    setAlert({ type: 'success', message: 'Borrador guardado correctamente.' });
+  };
+
+  // ---------- Student loader ----------
+  useEffect(() => {
+    if (!formData.estudiante_id) { setEstudiante(null); return; }
+    let c = false;
+    (async () => {
+      try {
+        const res = await api.get(`/estudiantes/${formData.estudiante_id}`);
+        if (!c) setEstudiante(res.data.data);
+      } catch { if (!c) setEstudiante(null); }
+    })();
+    return () => { c = true; };
   }, [formData.estudiante_id]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+<<<<<<< HEAD
   // Validation per step
   const validateStep = (stepKey) => {
     switch (stepKey) {
       case 'identificacion':
+=======
+  // ---------- Validation ----------
+  const validateStep = (step) => {
+    switch (step) {
+      case 1:
+>>>>>>> e124a304308e187a24bbba7f7c3207f75643da57
         if (!formData.estudiante_id) return 'Debe seleccionar un estudiante';
+        if (!formData.asignatura_id) return 'Debe seleccionar una asignatura';
         if (!formData.fecha_emision) return 'Debe ingresar la fecha de emisión';
         if (!formData.formato_generado) return 'Debe seleccionar un formato de salida';
         return null;
+<<<<<<< HEAD
       case 'perfil_dua':
         // DUA is optional but useful
+=======
+      case 2:
+>>>>>>> e124a304308e187a24bbba7f7c3207f75643da57
         return null;
       case 'trayectoria':
         if (formData.trayectoria.length === 0) return 'Debe agregar al menos un Objetivo de Aprendizaje';
@@ -144,6 +271,7 @@ export default function PaciWizardPage() {
     }
   };
 
+<<<<<<< HEAD
   const handleNext = () => {
     const error = validateStep(currentStepKey);
     if (error) {
@@ -152,27 +280,45 @@ export default function PaciWizardPage() {
     }
     setAlert({ type: '', message: '' });
     setCurrentStep((prev) => Math.min(prev + 1, activeSteps.length));
-  };
-
-  const handleBack = () => {
+=======
+  // ---------- Navigation ----------
+  const handleNext = async () => {
+    const error = validateStep(currentStep);
+    if (error) { setAlert({ type: 'error', message: error }); return; }
     setAlert({ type: '', message: '' });
-    setCurrentStep((prev) => Math.max(prev - 1, 1));
+    const nextStep = Math.min(currentStep + 1, STEPS.length);
+    setCurrentStep(nextStep);
+    await saveDraft(formData, nextStep);
+>>>>>>> e124a304308e187a24bbba7f7c3207f75643da57
   };
 
+  const handleBack = async () => {
+    setAlert({ type: '', message: '' });
+    const prevStep = Math.max(currentStep - 1, 1);
+    setCurrentStep(prevStep);
+    await saveDraft(formData, prevStep);
+  };
+
+  // ---------- Final save ----------
   const handleSave = async () => {
+<<<<<<< HEAD
     const error = validateStep('trayectoria');
     if (error) {
       setAlert({ type: 'error', message: error });
       return;
     }
+=======
+    const error = validateStep(3);
+    if (error) { setAlert({ type: 'error', message: error }); return; }
+>>>>>>> e124a304308e187a24bbba7f7c3207f75643da57
 
     setSaving(true);
     setAlert({ type: '', message: '' });
 
     try {
-      // Prepare payload: remove _asignatura_id (frontend-only field)
       const payload = {
         estudiante_id: formData.estudiante_id,
+        asignatura_id: formData.asignatura_id,
         fecha_emision: formData.fecha_emision,
         formato_generado: formData.formato_generado,
         anio_escolar: formData.anio_escolar || null,
@@ -190,7 +336,6 @@ export default function PaciWizardPage() {
           orden: v.orden ?? (i + 1),
         })),
         perfil_dua: formData.perfil_dua,
-        // Matrix ID arrays (v2)
         fortaleza_ids: formData.fortaleza_ids || [],
         barrera_ids: formData.barrera_ids || [],
         estrategia_dua_ids: formData.estrategia_dua_ids || [],
@@ -221,6 +366,7 @@ export default function PaciWizardPage() {
       const res = await api.post('/paci', payload);
       const paciId = res.data.data?.id;
       setSavedPaciId(paciId);
+      await deleteDraft();
       setAlert({ type: 'success', message: 'PACI creado exitosamente' });
     } catch (err) {
       const msg = err.response?.data?.message || 'Error al guardar el PACI';
@@ -230,7 +376,17 @@ export default function PaciWizardPage() {
     }
   };
 
-  // Success state
+  // ---------- Loading state ----------
+  if (draftLoading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3 text-secondary">Cargando borrador…</span>
+      </div>
+    );
+  }
+
+  // ---------- Success state ----------
   if (savedPaciId) {
     return (
       <div className="mx-auto max-w-lg py-16 text-center space-y-6">
@@ -255,8 +411,31 @@ export default function PaciWizardPage() {
     );
   }
 
+  // ---------- Main wizard ----------
   return (
     <div className="mx-auto max-w-4xl space-y-6">
+      {/* Draft modal */}
+      <Modal open={draftModal} onClose={() => {}} title="Borrador encontrado">
+        <div className="space-y-4">
+          <p className="text-sm text-secondary">
+            Tiene un borrador PACI en progreso:
+          </p>
+          <div className="rounded-lg bg-slate-50 p-4 space-y-1 text-sm">
+            <p><span className="font-medium text-slate-700">Estudiante:</span> {draftMeta?.nombre} ({draftMeta?.rut})</p>
+            <p><span className="font-medium text-slate-700">Asignatura:</span> {draftMeta?.asignatura}</p>
+            <p><span className="font-medium text-slate-700">Paso guardado:</span> {draftMeta?.paso} de {STEPS.length}</p>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button variant="outline" className="text-danger border-danger/30 hover:bg-danger/5" onClick={handleDiscardDraft}>
+              Descartar y empezar de nuevo
+            </Button>
+            <Button onClick={handleContinueDraft}>
+              Continuar borrador
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       {/* Step indicator */}
     <StepIndicator steps={activeSteps.map((step) => step.label)} currentStep={currentStep} />
 
@@ -300,7 +479,14 @@ export default function PaciWizardPage() {
           <Button variant="ghost" onClick={() => navigate('/paci')}>
             Cancelar
           </Button>
+<<<<<<< HEAD
           {currentStep < activeSteps.length ? (
+=======
+          <Button variant="outline" onClick={handleSaveDraft} loading={savingDraft}>
+            <FileDown className="h-4 w-4" /> Guardar Borrador
+          </Button>
+          {currentStep < STEPS.length ? (
+>>>>>>> e124a304308e187a24bbba7f7c3207f75643da57
             <Button onClick={handleNext}>
               Siguiente <ArrowRight className="h-4 w-4" />
             </Button>
