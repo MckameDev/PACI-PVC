@@ -501,6 +501,55 @@ function addMarcoNormativo(doc, y, pageH, contentW) {
 }
 
 /* ─────────────────────────────────────────────
+   XII. HORARIO DE APOYO (Formato Completo)
+   ───────────────────────────────────────────── */
+function addHorarioApoyo(doc, y, horarioApoyo, pageH, contentW) {
+  y = addSection(doc, y, 'XII. HORARIO DE APOYO', pageH, contentW);
+
+  const defaultCols = [
+    { key: 'hora', titulo: 'Hora', orden: 1 },
+    { key: 'lunes', titulo: 'Lunes', orden: 2 },
+    { key: 'martes', titulo: 'Martes', orden: 3 },
+    { key: 'miercoles', titulo: 'Miércoles', orden: 4 },
+    { key: 'jueves', titulo: 'Jueves', orden: 5 },
+    { key: 'viernes', titulo: 'Viernes', orden: 6 },
+  ];
+
+  const columnas = (horarioApoyo?.columnas?.length ? horarioApoyo.columnas : defaultCols)
+    .slice()
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+  const filas = (horarioApoyo?.filas || [])
+    .slice()
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+  const head = [columnas.map((col) => col.titulo)];
+  const body = filas.length > 0
+    ? filas.map((fila) => columnas.map((col) => (col.key === 'hora' ? (fila.hora || '') : ((fila.celdas || {})[col.key] || ''))))
+    : [columnas.map(() => '')];
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: MARGIN, right: MARGIN },
+    head,
+    body,
+    styles: {
+      fontSize: 6.5,
+      cellPadding: 2.2,
+      textColor: COLORS.text,
+      lineColor: [200, 200, 200],
+      lineWidth: 0.2,
+      minCellHeight: 8,
+      valign: 'middle',
+    },
+    headStyles: { fillColor: COLORS.primary, textColor: [255, 255, 255], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+
+  return doc.lastAutoTable.finalY + 6;
+}
+
+/* ─────────────────────────────────────────────
    FOOTER — Pie de página
    ───────────────────────────────────────────── */
 function addFooter(doc, pageW, pageH) {
@@ -560,6 +609,7 @@ function generateCompleto(doc, paci, pageW, pageH, contentW) {
   y = addTrabajoColaborativo(doc, y, pageH, contentW);
   y = addSeguimientoExtendido(doc, y, paci.trayectoria, pageH, contentW);
   y = addMarcoNormativo(doc, y, pageH, contentW);
+  y = addHorarioApoyo(doc, y, paci.horario_apoyo, pageH, contentW);
   addFooter(doc, pageW, pageH);
 }
 

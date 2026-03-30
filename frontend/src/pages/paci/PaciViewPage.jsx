@@ -71,6 +71,7 @@ export default function PaciViewPage() {
   const trayectoria = paci.trayectoria || [];
   const dua = paci.perfil_dua || {};
   const paecVars = paci.paec_variables || [];
+  const horarioApoyo = paci.horario_apoyo || null;
 
   // Helper: render matrix items or fallback to legacy pipe-delimited string
   const renderMatrixOrPipe = (matrixKey, pipeValue) => {
@@ -186,6 +187,41 @@ export default function PaciViewPage() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </Card>
+      ) : null}
+
+      {/* Horario de Apoyo */}
+      {paci.formato_generado === 'Completo' ? (
+        <Card className="space-y-4">
+          <h3 className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2">
+            Horario de Apoyo
+          </h3>
+          {!horarioApoyo || !(horarioApoyo.filas || []).length ? (
+            <p className="text-sm text-slate-400">No hay horario de apoyo registrado.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full min-w-[760px] text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {(horarioApoyo.columnas || []).map((col) => (
+                      <th key={col.key} className="px-2 py-2 text-left font-semibold text-slate-700">{col.titulo}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(horarioApoyo.filas || []).map((row) => (
+                    <tr key={row.id || row.orden}>
+                      {(horarioApoyo.columnas || []).map((col) => (
+                        <td key={col.key} className="px-2 py-2 text-slate-600 align-top whitespace-pre-wrap">
+                          {col.key === 'hora' ? (row.hora || '—') : ((row.celdas || {})[col.key] || '—')}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </Card>

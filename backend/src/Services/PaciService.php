@@ -158,6 +158,9 @@ class PaciService
         $stmtPaec->execute([':paci_id' => $id]);
         $paci['paec_variables'] = $stmtPaec->fetchAll();
 
+        // Carga la grilla de horario de apoyo para el formato completo
+        $paci['horario_apoyo'] = $this->getHorarioApoyo($id);
+
         return $paci;
     }
 
@@ -249,6 +252,11 @@ class PaciService
             // PAEC variables
             if (!empty($data['paec_variables']) && is_array($data['paec_variables'])) {
                 $this->insertPaecVariables($paciId, $data['paec_variables'], $userId);
+            }
+
+            // Inserta la grilla de horario de apoyo del formato completo
+            if (!empty($data['horario_apoyo']) && is_array($data['horario_apoyo'])) {
+                $this->insertHorarioApoyo($paciId, $data['horario_apoyo'], $userId);
             }
 
             if (!empty($data['expediente_ids'])) {
@@ -509,5 +517,238 @@ class PaciService
                 ]);
             }
         }
+    }
+
+    // Inserta la estructura de horario de apoyo (columnas, filas y celdas)
+    private function insertHorarioApoyo(string $paciId, array $horario, ?string $userId): void
+    {
+        $columnas = $horario['columnas'] ?? [];
+        $filas    = $horario['filas'] ?? [];
+
+        if (!is_array($columnas) || !is_array($filas)) {
+            return;
+        }
+
+        if (empty($columnas) && empty($filas)) {
+            return;
+        }
+
+        $horarioId = UUID::generate();
+        $stmtHorario = $this->db->prepare(
+            "INSERT INTO paci_horario_apoyo (id, paci_id, vigencia, created_by, updated_by)
+             VALUES (:id, :paci_id, 1, :created_by, :updated_by)"
+        );
+        $stmtHorario->execute([
+            ':id'         => $horarioId,
+            ':paci_id'    => $paciId,
+            ':created_by' => $userId,
+            ':updated_by' => $userId,
+        ]);
+
+        $defaultColumns = [
+            ['key' => 'hora',      'titulo' => 'Hora',      'es_fija' => 1],
+            ['key' => 'lunes',     'titulo' => 'Lunes',     'es_fija' => 1],
+            ['key' => 'martes',    'titulo' => 'Martes',    'es_fija' => 1],
+            ['key' => 'miercoles', 'titulo' => 'Miércoles', 'es_fija' => 1],
+            ['key' => 'jueves',    'titulo' => 'Jueves',    'es_fija' => 1],
+            ['key' => 'viernes',   'titulo' => 'Viernes',   'es_fija' => 1],
+        ];
+
+        $normalizedColumns = [];
+        if (empty($columnas)) {
+            $normalizedColumns = $defaultColumns;
+        } else {
+            foreach ($columnas as $idx => $col) {
+                if (!is_array($col)) continue;
+                $key = trim((string) ($col['key'] ?? ''));
+                if ($key === '') continue;
+                if (isset($normalizedColumns[$key])) continue;
+
+                $normalizedColumns[$key] = [
+                    'key'     => $key,
+                    'titulo'  => (string) ($col['titulo'] ?? ucfirst($key)),
+                    'orden'   => (int) ($col['orden'] ?? ($idx + 1)),
+                    'es_fija' => !empty($col['es_fija']) ? 1 : 0,
+                ];
+            }
+
+            if (!isset($normalizedColumns['hora'])) {
+                $normalizedColumns['hora'] = [
+                    'key'     => 'hora',
+                    'titulo'  => 'Hora',
+                    'orden'   => 1,
+                    'es_fija' => 1,
+                ];
+            }
+
+            $normalizedColumns = array_values($normalizedColumns);
+            usort($normalizedColumns, static fn(array $a, array $b): int => $a['orden'] <=> $b['orden']);
+        }
+
+        $stmtCol = $this->db->prepare(
+            "INSERT INTO paci_horario_apoyo_columnas
+             (id, horario_id, col_key, titulo, orden, es_fija, vigencia, created_by, updated_by)
+             VALUES (:id, :horario_id, :col_key, :titulo, :orden, :es_fija, 1, :created_by, :updated_by)"
+        );
+
+        $columnIdByKey = [];
+        foreach ($normalizedColumns as $idx => $col) {
+            $colId = UUID::generate();
+            $stmtCol->execute([
+                ':id'         => $colId,
+                ':horario_id' => $horarioId,
+                ':col_key'    => $col['key'],
+                ':titulo'     => $col['titulo'],
+                ':orden'      => (int) ($col['orden'] ?? ($idx + 1)),
+                ':es_fija'    => !empty($col['es_fija']) ? 1 : 0,
+                ':created_by' => $userId,
+                ':updated_by' => $userId,
+            ]);
+
+            $columnIdByKey[$col['key']] = $colId;
+        }
+
+        $stmtFila = $this->db->prepare(
+            "INSERT INTO paci_horario_apoyo_filas (id, horario_id, orden, hora, vigencia, created_by, updated_by)
+             VALUES (:id, :horario_id, :orden, :hora, 1, :created_by, :updated_by)"
+        );
+
+        $stmtCelda = $this->db->prepare(
+            "INSERT INTO paci_horario_apoyo_celdas (id, fila_id, columna_id, contenido, vigencia, created_by, updated_by)
+             VALUES (:id, :fila_id, :columna_id, :contenido, 1, :created_by, :updated_by)"
+        );
+
+        foreach ($filas as $idx => $fila) {
+            if (!is_array($fila)) continue;
+
+            $filaId = UUID::generate();
+            $stmtFila->execute([
+                ':id'         => $filaId,
+                ':horario_id' => $horarioId,
+                ':orden'      => (int) ($fila['orden'] ?? ($idx + 1)),
+                ':hora'       => $fila['hora'] ?? null,
+                ':created_by' => $userId,
+                ':updated_by' => $userId,
+            ]);
+
+            $celdas = is_array($fila['celdas'] ?? null) ? $fila['celdas'] : [];
+            foreach ($columnIdByKey as $colKey => $colId) {
+                if ($colKey === 'hora') continue;
+
+                $contenido = $celdas[$colKey] ?? null;
+                if ($contenido === null || $contenido === '') {
+                    continue;
+                }
+
+                $stmtCelda->execute([
+                    ':id'         => UUID::generate(),
+                    ':fila_id'    => $filaId,
+                    ':columna_id' => $colId,
+                    ':contenido'  => (string) $contenido,
+                    ':created_by' => $userId,
+                    ':updated_by' => $userId,
+                ]);
+            }
+        }
+    }
+
+    // Obtiene la estructura de horario de apoyo asociada a un PACI
+    private function getHorarioApoyo(string $paciId): ?array
+    {
+        $stmtHorario = $this->db->prepare(
+            "SELECT * FROM paci_horario_apoyo WHERE paci_id = :paci_id AND vigencia = 1 LIMIT 1"
+        );
+        $stmtHorario->execute([':paci_id' => $paciId]);
+        $horario = $stmtHorario->fetch();
+
+        if (!$horario) {
+            return null;
+        }
+
+        $stmtCols = $this->db->prepare(
+            "SELECT id, col_key, titulo, orden, es_fija
+             FROM paci_horario_apoyo_columnas
+             WHERE horario_id = :horario_id AND vigencia = 1
+             ORDER BY orden ASC"
+        );
+        $stmtCols->execute([':horario_id' => $horario['id']]);
+        $cols = $stmtCols->fetchAll();
+
+        if (empty($cols)) {
+            return [
+                'id'       => $horario['id'],
+                'columnas' => [],
+                'filas'    => [],
+            ];
+        }
+
+        $columnas = array_map(static fn(array $col): array => [
+            'key'     => $col['col_key'],
+            'titulo'  => $col['titulo'],
+            'orden'   => (int) $col['orden'],
+            'es_fija' => (int) $col['es_fija'],
+        ], $cols);
+
+        $colIds = array_column($cols, 'id');
+        $colKeyById = [];
+        foreach ($cols as $col) {
+            $colKeyById[$col['id']] = $col['col_key'];
+        }
+
+        $stmtFilas = $this->db->prepare(
+            "SELECT id, orden, hora
+             FROM paci_horario_apoyo_filas
+             WHERE horario_id = :horario_id AND vigencia = 1
+             ORDER BY orden ASC"
+        );
+        $stmtFilas->execute([':horario_id' => $horario['id']]);
+        $filasDb = $stmtFilas->fetchAll();
+
+        $filas = [];
+        if (!empty($filasDb)) {
+            $filaIds = array_column($filasDb, 'id');
+
+            $inFila = implode(',', array_fill(0, count($filaIds), '?'));
+            $inCol  = implode(',', array_fill(0, count($colIds), '?'));
+
+            $stmtCeldas = $this->db->prepare(
+                "SELECT fila_id, columna_id, contenido
+                 FROM paci_horario_apoyo_celdas
+                 WHERE vigencia = 1 AND fila_id IN ({$inFila}) AND columna_id IN ({$inCol})"
+            );
+            $stmtCeldas->execute(array_merge($filaIds, $colIds));
+            $celdasDb = $stmtCeldas->fetchAll();
+
+            $celdaMap = [];
+            foreach ($celdasDb as $celda) {
+                $key = $colKeyById[$celda['columna_id']] ?? null;
+                if ($key === null) continue;
+                if (!isset($celdaMap[$celda['fila_id']])) {
+                    $celdaMap[$celda['fila_id']] = [];
+                }
+                $celdaMap[$celda['fila_id']][$key] = $celda['contenido'];
+            }
+
+            foreach ($filasDb as $fila) {
+                $celdas = [];
+                foreach ($columnas as $col) {
+                    if ($col['key'] === 'hora') continue;
+                    $celdas[$col['key']] = $celdaMap[$fila['id']][$col['key']] ?? '';
+                }
+
+                $filas[] = [
+                    'id'     => $fila['id'],
+                    'orden'  => (int) $fila['orden'],
+                    'hora'   => $fila['hora'] ?? '',
+                    'celdas' => $celdas,
+                ];
+            }
+        }
+
+        return [
+            'id'       => $horario['id'],
+            'columnas' => $columnas,
+            'filas'    => $filas,
+        ];
     }
 }

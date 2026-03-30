@@ -11,9 +11,25 @@ import StepIdentificacion from './steps/StepIdentificacion';
 import StepPerfilDua from './steps/StepPerfilDua';
 import StepTrayectoriaOa from './steps/StepTrayectoriaOa';
 import StepPAEC from './steps/StepPAEC';
+import StepHorarioApoyo from './steps/StepHorarioApoyo';
 import StepResumen from './steps/StepResumen';
 
-const STEPS = ['Identificación', 'Perfil DUA', 'Trayectoria OA', 'PAEC', 'Resumen'];
+const BASE_STEPS = [
+  { key: 'identificacion', label: 'Identificación' },
+  { key: 'perfil_dua', label: 'Perfil DUA' },
+  { key: 'trayectoria', label: 'Trayectoria OA' },
+  { key: 'paec', label: 'PAEC' },
+  { key: 'resumen', label: 'Resumen' },
+];
+
+const COMPLETO_STEPS = [
+  { key: 'identificacion', label: 'Identificación' },
+  { key: 'perfil_dua', label: 'Perfil DUA' },
+  { key: 'trayectoria', label: 'Trayectoria OA' },
+  { key: 'paec', label: 'PAEC' },
+  { key: 'horario_apoyo', label: 'Horario Apoyo' },
+  { key: 'resumen', label: 'Resumen' },
+];
 
 export default function PaciWizardPage() {
   const navigate = useNavigate();
@@ -55,7 +71,27 @@ export default function PaciWizardPage() {
     acceso_curricular_ids: [],
     habilidad_base_ids: [],
     trayectoria: [],
+    horario_apoyo: {
+      columnas: [
+        { key: 'hora', titulo: 'Hora', orden: 1, es_fija: 1 },
+        { key: 'lunes', titulo: 'Lunes', orden: 2, es_fija: 1 },
+        { key: 'martes', titulo: 'Martes', orden: 3, es_fija: 1 },
+        { key: 'miercoles', titulo: 'Miércoles', orden: 4, es_fija: 1 },
+        { key: 'jueves', titulo: 'Jueves', orden: 5, es_fija: 1 },
+        { key: 'viernes', titulo: 'Viernes', orden: 6, es_fija: 1 },
+      ],
+      filas: [],
+    },
   });
+
+  const activeSteps = formData.formato_generado === 'Completo' ? COMPLETO_STEPS : BASE_STEPS;
+  const currentStepKey = activeSteps[currentStep - 1]?.key;
+
+  useEffect(() => {
+    if (currentStep > activeSteps.length) {
+      setCurrentStep(activeSteps.length);
+    }
+  }, [currentStep, activeSteps.length]);
 
   // Store full student data for display in steps
   const [estudiante, setEstudiante] = useState(null);
@@ -82,17 +118,17 @@ export default function PaciWizardPage() {
   };
 
   // Validation per step
-  const validateStep = (step) => {
-    switch (step) {
-      case 1:
+  const validateStep = (stepKey) => {
+    switch (stepKey) {
+      case 'identificacion':
         if (!formData.estudiante_id) return 'Debe seleccionar un estudiante';
         if (!formData.fecha_emision) return 'Debe ingresar la fecha de emisión';
         if (!formData.formato_generado) return 'Debe seleccionar un formato de salida';
         return null;
-      case 2:
+      case 'perfil_dua':
         // DUA is optional but useful
         return null;
-      case 3:
+      case 'trayectoria':
         if (formData.trayectoria.length === 0) return 'Debe agregar al menos un Objetivo de Aprendizaje';
         for (let i = 0; i < formData.trayectoria.length; i++) {
           const item = formData.trayectoria[i];
@@ -109,13 +145,13 @@ export default function PaciWizardPage() {
   };
 
   const handleNext = () => {
-    const error = validateStep(currentStep);
+    const error = validateStep(currentStepKey);
     if (error) {
       setAlert({ type: 'error', message: error });
       return;
     }
     setAlert({ type: '', message: '' });
-    setCurrentStep((prev) => Math.min(prev + 1, STEPS.length));
+    setCurrentStep((prev) => Math.min(prev + 1, activeSteps.length));
   };
 
   const handleBack = () => {
@@ -124,7 +160,7 @@ export default function PaciWizardPage() {
   };
 
   const handleSave = async () => {
-    const error = validateStep(3);
+    const error = validateStep('trayectoria');
     if (error) {
       setAlert({ type: 'error', message: error });
       return;
@@ -160,6 +196,10 @@ export default function PaciWizardPage() {
         estrategia_dua_ids: formData.estrategia_dua_ids || [],
         acceso_curricular_ids: formData.acceso_curricular_ids || [],
         habilidad_base_ids: formData.habilidad_base_ids || [],
+        horario_apoyo:
+          formData.formato_generado === 'Completo' && (formData.horario_apoyo?.filas || []).length > 0
+            ? formData.horario_apoyo
+            : null,
         trayectoria: formData.trayectoria.map((item) => ({
           oa_id: item.oa_id,
           nivel_trabajo_id: item.nivel_trabajo_id,
@@ -218,7 +258,7 @@ export default function PaciWizardPage() {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       {/* Step indicator */}
-      <StepIndicator steps={STEPS} currentStep={currentStep} />
+    <StepIndicator steps={activeSteps.map((step) => step.label)} currentStep={currentStep} />
 
       {/* Alert */}
       {alert.message && (
@@ -227,19 +267,22 @@ export default function PaciWizardPage() {
 
       {/* Step content */}
       <div>
-        {currentStep === 1 && (
+        {currentStepKey === 'identificacion' && (
           <StepIdentificacion data={formData} onChange={handleChange} />
         )}
-        {currentStep === 2 && (
+        {currentStepKey === 'perfil_dua' && (
           <StepPerfilDua data={formData} onChange={handleChange} />
         )}
-        {currentStep === 3 && (
+        {currentStepKey === 'trayectoria' && (
           <StepTrayectoriaOa data={formData} onChange={handleChange} estudiante={estudiante} />
         )}
-        {currentStep === 4 && (
+        {currentStepKey === 'paec' && (
           <StepPAEC data={formData} onChange={handleChange} />
         )}
-        {currentStep === 5 && (
+        {currentStepKey === 'horario_apoyo' && (
+          <StepHorarioApoyo data={formData} onChange={handleChange} />
+        )}
+        {currentStepKey === 'resumen' && (
           <StepResumen data={formData} estudiante={estudiante} />
         )}
       </div>
@@ -257,7 +300,7 @@ export default function PaciWizardPage() {
           <Button variant="ghost" onClick={() => navigate('/paci')}>
             Cancelar
           </Button>
-          {currentStep < STEPS.length ? (
+          {currentStep < activeSteps.length ? (
             <Button onClick={handleNext}>
               Siguiente <ArrowRight className="h-4 w-4" />
             </Button>
