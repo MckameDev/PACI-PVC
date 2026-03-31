@@ -1,12 +1,27 @@
 import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 
+const toStartMinutes = (value) => {
+  const match = /^(\d{2}):(\d{2})\s-\s(\d{2}):(\d{2})$/.exec((value || '').trim());
+  if (!match) return Number.POSITIVE_INFINITY;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (hh > 23 || mm > 59) return Number.POSITIVE_INFINITY;
+  return hh * 60 + mm;
+};
+
 export default function StepResumen({ data, estudiante }) {
   const dua = data.perfil_dua || {};
   const trayectoria = data.trayectoria || [];
   const horario = data.horario_apoyo || { columnas: [], filas: [] };
   const horarioColumnas = (horario.columnas || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
-  const horarioFilas = (horario.filas || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  const horarioFilas = (horario.filas || [])
+    .slice()
+    .sort((a, b) => {
+      const byHour = toStartMinutes(a?.hora) - toStartMinutes(b?.hora);
+      if (byHour !== 0) return byHour;
+      return (a?.orden || 0) - (b?.orden || 0);
+    });
 
   const renderList = (pipeString) => {
     if (!pipeString) return <span className="text-slate-400">No seleccionado</span>;

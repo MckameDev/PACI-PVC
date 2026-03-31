@@ -10,6 +10,15 @@ import Alert from '../../components/ui/Alert';
 import Select from '../../components/ui/Select';
 import { generatePaciPdf } from '../../services/pdfService';
 
+const toStartMinutes = (value) => {
+  const match = /^(\d{2}):(\d{2})\s-\s(\d{2}):(\d{2})$/.exec((value || '').trim());
+  if (!match) return Number.POSITIVE_INFINITY;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (hh > 23 || mm > 59) return Number.POSITIVE_INFINITY;
+  return hh * 60 + mm;
+};
+
 export default function PaciViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -72,6 +81,13 @@ export default function PaciViewPage() {
   const dua = paci.perfil_dua || {};
   const paecVars = paci.paec_variables || [];
   const horarioApoyo = paci.horario_apoyo || null;
+  const horarioFilas = (horarioApoyo?.filas || [])
+    .slice()
+    .sort((a, b) => {
+      const byHour = toStartMinutes(a?.hora) - toStartMinutes(b?.hora);
+      if (byHour !== 0) return byHour;
+      return (a?.orden || 0) - (b?.orden || 0);
+    });
 
   // Helper: render matrix items or fallback to legacy pipe-delimited string
   const renderMatrixOrPipe = (matrixKey, pipeValue) => {
@@ -211,7 +227,7 @@ export default function PaciViewPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {(horarioApoyo.filas || []).map((row) => (
+                  {horarioFilas.map((row) => (
                     <tr key={row.id || row.orden}>
                       {(horarioApoyo.columnas || []).map((col) => (
                         <td key={col.key} className="px-2 py-2 text-slate-600 align-top whitespace-pre-wrap">

@@ -34,16 +34,38 @@ const buildEmptyRow = (orden, columns) => {
 
 const buildDefaultHorario = () => ({
   columnas: DEFAULT_COLUMNS,
-  filas: Array.from({ length: 8 }, (_, i) => buildEmptyRow(i + 1, DEFAULT_COLUMNS)),
+  filas: Array.from({ length: 3 }, (_, i) => buildEmptyRow(i + 1, DEFAULT_COLUMNS)),
 });
 
-const slugify = (value) =>
-  (value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+const sanitizeHorarioInput = (value) => {
+  const raw = (value || '').replace(/[^0-9]/g, '').slice(0, 8);
+  const p1 = raw.slice(0, 2);
+  const p2 = raw.slice(2, 4);
+  const p3 = raw.slice(4, 6);
+  const p4 = raw.slice(6, 8);
+
+  let formatted = '';
+  if (p1) formatted += p1;
+  if (p2) formatted += `:${p2}`;
+  if (p3) formatted += ` - ${p3}`;
+  if (p4) formatted += `:${p4}`;
+  return formatted;
+};
+
+const isValidHorarioRange = (value) => {
+  const match = /^(\d{2}):(\d{2})\s-\s(\d{2}):(\d{2})$/.exec((value || '').trim());
+  if (!match) return false;
+
+  const h1 = Number(match[1]);
+  const m1 = Number(match[2]);
+  const h2 = Number(match[3]);
+  const m2 = Number(match[4]);
+
+  if (h1 > 23 || h2 > 23 || m1 > 59 || m2 > 59) return false;
+  const start = h1 * 60 + m1;
+  const end = h2 * 60 + m2;
+  return end > start;
+};
 
 export default function StepHorarioApoyo({ data, onChange }) {
   const horario = data.horario_apoyo || buildDefaultHorario();
@@ -69,64 +91,19 @@ export default function StepHorarioApoyo({ data, onChange }) {
     updateHorario({ filas: nextRows });
   };
 
-  const addColumna = () => {
-    const titulo = window.prompt('Nombre de la nueva columna:');
-    if (!titulo || !titulo.trim()) return;
-
-    let keyBase = slugify(titulo);
-    if (!keyBase) keyBase = 'columna';
-
-    let key = keyBase;
-    let seq = 2;
-    const keysExistentes = new Set(columnas.map((c) => c.key));
-    while (keysExistentes.has(key)) {
-      key = `${keyBase}_${seq}`;
-      seq += 1;
-    }
-
-    const newCol = {
-      key,
-      titulo: titulo.trim(),
-      orden: columnas.length + 1,
-      es_fija: 0,
-    };
-
-    const nextRows = filas.map((row) => ({
-      ...row,
-      celdas: {
-        ...(row.celdas || {}),
-        [key]: '',
-      },
-    }));
-
-    updateHorario({
-      columnas: [...columnas, newCol],
-      filas: nextRows,
-    });
-  };
-
-  const removeColumna = (colKey) => {
-    const target = columnas.find((col) => col.key === colKey);
-    if (!target || target.es_fija) return;
-
-    const nextColumns = columnas
-      .filter((col) => col.key !== colKey)
-      .map((col, index) => ({ ...col, orden: index + 1 }));
-
-    const nextRows = filas.map((row) => {
-      const nextCells = { ...(row.celdas || {}) };
-      delete nextCells[colKey];
-      return { ...row, celdas: nextCells };
-    });
-
-    updateHorario({
-      columnas: nextColumns,
-      filas: nextRows,
-    });
-  };
-
   const updateHora = (rowId, value) => {
-    const nextRows = filas.map((row) => (row.id === rowId ? { ...row, hora: value } : row));
+    const nextRows = filas.map((row) => (
+      row.id === rowId ? { ...row, hora: sanitizeHorarioInput(value) } : row
+    ));
+    updateHorario({ filas: nextRows });
+  };
+
+  const normalizeHora = (rowId) => {
+    const row = filas.find((r) => r.id === rowId);
+    if (!row) return;
+    const value = (row.hora || '').trim();
+    if (!value || isValidHorarioRange(value)) return;
+    const nextRows = filas.map((r) => (r.id === rowId ? { ...r, hora: '' } : r));
     updateHorario({ filas: nextRows });
   };
 
@@ -150,7 +127,7 @@ export default function StepHorarioApoyo({ data, onChange }) {
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Paso 5: Horario de Apoyo</h2>
         <p className="text-sm text-secondary mt-1">
-          Defina la grilla semanal del apoyo pedagógico. Puede agregar filas y columnas según lo que requiera el formato completo.
+          Defina la grilla semanal del apoyo pedagógico. Puede agregar filas según lo que requiera el formato completo.
         </p>
       </div>
 
@@ -159,35 +136,26 @@ export default function StepHorarioApoyo({ data, onChange }) {
           <h3 className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2 w-full sm:w-auto">
             12. Horario de Apoyo
           </h3>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={addColumna}>
-              <Plus className="h-3.5 w-3.5" /> Columna
-            </Button>
-            <Button size="sm" variant="outline" onClick={addFila}>
-              <Plus className="h-3.5 w-3.5" /> Fila
-            </Button>
-          </div>
+          <p className="text-xs text-slate-500">Formato obligatorio de hora: 08:00 - 08:45</p>
         </div>
 
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="w-full min-w-[820px] text-sm">
+          <div className="max-h-[260px] overflow-y-auto">
+            <table className="w-full min-w-[980px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[170px]" />
+              <col />
+              <col />
+              <col />
+              <col />
+              <col />
+              <col className="w-[44px]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 {columnas.map((col) => (
                   <th key={col.key} className="px-3 py-2 text-left font-semibold text-slate-700 align-top">
-                    <div className="flex items-start justify-between gap-2">
-                      <span>{col.titulo}</span>
-                      {!col.es_fija && (
-                        <button
-                          type="button"
-                          onClick={() => removeColumna(col.key)}
-                          className="rounded p-1 text-slate-400 hover:bg-danger/10 hover:text-danger"
-                          title="Eliminar columna"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
+                    <span>{col.titulo}</span>
                   </th>
                 ))}
                 <th className="w-10" />
@@ -204,7 +172,10 @@ export default function StepHorarioApoyo({ data, onChange }) {
                             type="text"
                             value={row.hora || ''}
                             onChange={(e) => updateHora(row.id, e.target.value)}
+                            onBlur={() => normalizeHora(row.id)}
                             placeholder="08:00 - 08:45"
+                            inputMode="numeric"
+                            maxLength={13}
                             className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-primary focus:outline-none"
                           />
                         </td>
@@ -213,11 +184,12 @@ export default function StepHorarioApoyo({ data, onChange }) {
 
                     return (
                       <td key={col.key} className="px-2 py-2">
-                        <textarea
+                        <input
+                          type="text"
                           value={(row.celdas || {})[col.key] || ''}
                           onChange={(e) => updateCelda(row.id, col.key, e.target.value)}
-                          rows={2}
-                          className="w-full resize-y rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-primary focus:outline-none"
+                          maxLength={30}
+                          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs focus:border-primary focus:outline-none"
                           placeholder="Escriba el apoyo para este bloque"
                         />
                       </td>
@@ -236,7 +208,14 @@ export default function StepHorarioApoyo({ data, onChange }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button size="sm" variant="outline" onClick={addFila}>
+            <Plus className="h-3.5 w-3.5" /> Anadir fila
+          </Button>
         </div>
       </Card>
     </div>
