@@ -30,6 +30,7 @@ import EvaluacionesPage from '../pages/datos-base/EvaluacionesPage';
 import ProfesoresPage from '../pages/datos-base/ProfesoresPage';
 import ImportPage from '../pages/datos-base/ImportPage';
 import ChatbotAdminPage from '../pages/datos-base/ChatbotAdminPage';
+import IaAdminPage from '../pages/datos-base/IaAdminPage';
 import MatricesAdminPage from '../pages/datos-base/MatricesAdminPage';
 import CoreAdminPage from '../pages/datos-base/CoreAdminPage';
 
@@ -85,6 +86,7 @@ export default function AppRouter() {
               <Route path="profesores" element={<ProfesoresPage />} />
               <Route path="importar" element={<ImportPage />} />
               <Route path="chatbot-admin" element={<ChatbotAdminPage />} />
+              <Route path="ia-admin" element={<IaAdminPage />} />
               <Route path="matrices" element={<MatricesAdminPage />} />
               <Route path="core-curricular" element={<CoreAdminPage />} />
             </Route>

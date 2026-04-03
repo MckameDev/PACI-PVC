@@ -64,6 +64,8 @@ use App\Controllers\SaludEstudianteController;
 use App\Controllers\AntecedenteEscolarController;
 use App\Controllers\SeguimientoPaciController;
 use App\Controllers\AiController;
+use App\Controllers\OpenRouterAiController;
+use App\Controllers\AiAdminController;
 use App\Controllers\MatrizEstrategiaLecturaController;
 use App\Controllers\MatrizEstrategiaEscrituraController;
 use App\Controllers\MatrizEstrategiaComunicacionController;
@@ -385,6 +387,21 @@ $router->patch('/api/seguimiento-paci/{id}', [SeguimientoPaciController::class, 
 // Rutas protegidas: IA – Generación de OA adaptado
 // -----------------------------------------------------------
 $router->post('/api/ai/generar-oa-adaptado', [AiController::class, 'generarOaAdaptado'], true);
+
+// -----------------------------------------------------------
+// Rutas protegidas: IA OpenRouter (prueba aislada)
+// -----------------------------------------------------------
+$router->post('/api/ai-openrouter/generar-paci-completo', [OpenRouterAiController::class, 'generarPaciCompleto'], true);
+$router->post('/api/ai-openrouter/generar-oa-adaptado', [OpenRouterAiController::class, 'generarOaAdaptado'], true);
+
+// -----------------------------------------------------------
+// Rutas protegidas: IA Admin (configuración del motor)
+// -----------------------------------------------------------
+$router->get('/api/admin/ia/config', [AiAdminController::class, 'getConfig'], true);
+$router->put('/api/admin/ia/config', [AiAdminController::class, 'saveConfig'], true);
+$router->post('/api/admin/ia/parametros', [AiAdminController::class, 'storeParametro'], true);
+$router->put('/api/admin/ia/parametros/{id}', [AiAdminController::class, 'updateParametro'], true);
+$router->patch('/api/admin/ia/parametros/{id}', [AiAdminController::class, 'toggleParametro'], true);
 
 // -----------------------------------------------------------
 // Rutas protegidas: Chatbot Pedagógico (público = autenticado)

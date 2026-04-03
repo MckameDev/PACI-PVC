@@ -34,6 +34,18 @@ class ProfesorService
             $where[]                         = 'p.establecimiento_id = :establecimiento_id';
             $params[':establecimiento_id']   = $filters['establecimiento_id'];
         }
+        if (!empty($filters['email'])) {
+            $where[] = 'LOWER(u.email) LIKE :email';
+            $params[':email'] = '%' . strtolower((string) $filters['email']) . '%';
+        }
+        if (!empty($filters['nombre'])) {
+            $where[] = 'LOWER(u.nombre) LIKE :nombre';
+            $params[':nombre'] = '%' . strtolower((string) $filters['nombre']) . '%';
+        }
+        if (!empty($filters['q'])) {
+            $where[] = '(LOWER(u.nombre) LIKE :q OR LOWER(u.email) LIKE :q)';
+            $params[':q'] = '%' . strtolower((string) $filters['q']) . '%';
+        }
 
         $whereStr = implode(' AND ', $where);
         $offset   = ($page - 1) * $limit;

@@ -19,6 +19,7 @@ import {
   UserCheck,
   MessageSquare,
   Grid,
+  Brain,
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 
@@ -60,6 +61,7 @@ const adminSections = [
     items: [
       { to: '/importar', icon: FileSpreadsheet, label: 'Importar Excel' },
       { to: '/chatbot-admin', icon: MessageSquare, label: 'Chatbot Admin' },
+      { to: '/ia-admin', icon: Brain, label: 'IA Admin' },
       { to: '/matrices', icon: Grid, label: 'Matrices Pedagógicas' },
       { to: '/core-curricular', icon: Layers, label: 'Core Curricular' },
     ],

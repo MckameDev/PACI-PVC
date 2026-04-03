@@ -49,6 +49,18 @@ class EstudianteService
             $where[]              = 'e.tipo_nee = :tipo_nee';
             $params[':tipo_nee']  = $filters['tipo_nee'];
         }
+        if (!empty($filters['rut'])) {
+            $where[] = "REPLACE(REPLACE(LOWER(e.rut), '.', ''), '-', '') = :rut_normalized";
+            $params[':rut_normalized'] = preg_replace('/[^0-9k]/', '', strtolower((string) $filters['rut']));
+        }
+        if (!empty($filters['nombre_completo'])) {
+            $where[] = 'LOWER(e.nombre_completo) LIKE :nombre_completo';
+            $params[':nombre_completo'] = '%' . strtolower((string) $filters['nombre_completo']) . '%';
+        }
+        if (!empty($filters['q'])) {
+            $where[] = '(LOWER(e.nombre_completo) LIKE :q OR LOWER(e.rut) LIKE :q)';
+            $params[':q'] = '%' . strtolower((string) $filters['q']) . '%';
+        }
 
         $whereStr = implode(' AND ', $where);
         $offset   = ($page - 1) * $limit;

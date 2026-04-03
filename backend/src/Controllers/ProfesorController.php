@@ -22,7 +22,7 @@ class ProfesorController
     {
         $page    = (int) ($_GET['page'] ?? 1);
         $limit   = (int) ($_GET['limit'] ?? 20);
-        $filters = array_intersect_key($_GET, array_flip(['establecimiento_id']));
+        $filters = array_intersect_key($_GET, array_flip(['establecimiento_id', 'email', 'nombre', 'q']));
         Response::success($this->service->getAll($filters, $page, $limit));
     }
 

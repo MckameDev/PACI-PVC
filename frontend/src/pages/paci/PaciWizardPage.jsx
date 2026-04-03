@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Save, CheckCircle, FileDown, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, CheckCircle, FileDown, Loader2, MessageSquare } from 'lucide-react';
 import api from '../../api/axios';
 import useAuthStore from '../../stores/useAuthStore';
 import Button from '../../components/ui/Button';
@@ -14,6 +14,7 @@ import StepTrayectoriaOa from './steps/StepTrayectoriaOa';
 import StepPAEC from './steps/StepPAEC';
 import StepHorarioApoyo from './steps/StepHorarioApoyo';
 import StepResumen from './steps/StepResumen';
+import PaciAiAssistantPanel from './components/PaciAiAssistantPanel';
 
 const BASE_STEPS = [
   { key: 'identificacion', label: 'Identificacion' },
@@ -98,6 +99,34 @@ const defaultFormData = {
   horario_apoyo: defaultHorarioApoyo,
 };
 
+const normalizeTrayectoriaItem = (item) => ({
+  _asignatura_id: item?._asignatura_id || '',
+  _eje: item?._eje || '',
+  _unidad: item?._unidad || '',
+  oa_id: item?.oa_id || '',
+  nivel_trabajo_id: item?.nivel_trabajo_id || '',
+  diferencia_calculada: Number(item?.diferencia_calculada || 0),
+  tipo_adecuacion: item?.tipo_adecuacion || 'Acceso',
+  justificacion_tecnica: item?.justificacion_tecnica || '',
+  indicadores_seleccionados: Array.isArray(item?.indicadores_seleccionados) ? item.indicadores_seleccionados : [],
+  adecuacion_oa: {
+    meta_integradora: item?.adecuacion_oa?.meta_integradora || '',
+    estrategias: item?.adecuacion_oa?.estrategias || '',
+    adecuaciones: item?.adecuacion_oa?.adecuaciones || '',
+    instrumento_evaluacion: item?.adecuacion_oa?.instrumento_evaluacion || '',
+    justificacion: item?.adecuacion_oa?.justificacion || '',
+    criterios_evaluacion: item?.adecuacion_oa?.criterios_evaluacion || '',
+    observaciones: item?.adecuacion_oa?.observaciones || '',
+  },
+  meta_especifica: item?.meta_especifica || '',
+  estrategias_dua: item?.estrategias_dua || '',
+  habilidades: item?.habilidades || '',
+  seguimiento_registro: item?.seguimiento_registro || '',
+  eval_modalidad: item?.eval_modalidad || '',
+  eval_instrumento: item?.eval_instrumento || '',
+  eval_criterio: item?.eval_criterio || '',
+});
+
 export default function PaciWizardPage() {
   const navigate = useNavigate();
   useAuthStore((s) => s.user);
@@ -110,6 +139,7 @@ export default function PaciWizardPage() {
   const [alert, setAlert] = useState({ type: '', message: '' });
   const [savedPaciId, setSavedPaciId] = useState(null);
   const [estudiante, setEstudiante] = useState(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
 
   // Draft-related state
   const [draftLoading, setDraftLoading] = useState(true);
@@ -253,6 +283,42 @@ export default function PaciWizardPage() {
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
+
+  const handleApplyAiSuggestion = useCallback((suggestion, options = {}) => {
+    setFormData((prev) => {
+      const merged = {
+        ...prev,
+        ...suggestion,
+      };
+
+      if (suggestion?.perfil_dua && typeof suggestion.perfil_dua === 'object') {
+        merged.perfil_dua = {
+          ...prev.perfil_dua,
+          ...suggestion.perfil_dua,
+        };
+      }
+
+      if (Array.isArray(suggestion?.trayectoria)) {
+        merged.trayectoria = suggestion.trayectoria.map(normalizeTrayectoriaItem);
+      }
+
+      if (suggestion?.horario_apoyo && typeof suggestion.horario_apoyo === 'object') {
+        merged.horario_apoyo = {
+          ...defaultHorarioApoyo,
+          ...suggestion.horario_apoyo,
+        };
+      }
+
+      return merged;
+    });
+
+    if (!options.silent) {
+      setAlert({
+        type: 'success',
+        message: 'Se aplicó una propuesta generada por IA al formulario PACI. Revisa y confirma antes de guardar.',
+      });
+    }
+  }, []);
 
   // ---------- Validation ----------
   const validateStep = (stepKey) => {
@@ -453,8 +519,12 @@ export default function PaciWizardPage() {
     ? 'mx-auto max-w-7xl space-y-6'
     : 'mx-auto max-w-4xl space-y-6';
 
+  const mainContainerClass = aiPanelOpen
+    ? 'mx-auto max-w-[1500px] space-y-6'
+    : wizardContainerClass;
+
   return (
-    <div className={wizardContainerClass}>
+    <div className={mainContainerClass}>
       {/* Draft modal */}
       <Modal open={draftModal} onClose={() => {}} title="Borrador encontrado">
         <div className="space-y-4">
@@ -481,55 +551,79 @@ export default function PaciWizardPage() {
         <Alert type={alert.type} message={alert.message} onClose={() => setAlert({ type: '', message: '' })} />
       )}
 
-      {/* Step content */}
-      <div>
-        {currentStepKey === 'identificacion' && (
-          <StepIdentificacion data={formData} onChange={handleChange} />
-        )}
-        {currentStepKey === 'perfil_dua' && (
-          <StepPerfilDua data={formData} onChange={handleChange} />
-        )}
-        {currentStepKey === 'trayectoria' && (
-          <StepTrayectoriaOa data={formData} onChange={handleChange} estudiante={estudiante} />
-        )}
-        {currentStepKey === 'paec' && (
-          <StepPAEC data={formData} onChange={handleChange} />
-        )}
-        {currentStepKey === 'horario_apoyo' && (
-          <StepHorarioApoyo data={formData} onChange={handleChange} />
-        )}
-        {currentStepKey === 'resumen' && (
-          <StepResumen data={formData} estudiante={estudiante} />
+      <div className={aiPanelOpen ? 'grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_430px] xl:items-start' : ''}>
+        <div>
+          {/* Step content */}
+          <div>
+            {currentStepKey === 'identificacion' && (
+              <StepIdentificacion data={formData} onChange={handleChange} />
+            )}
+            {currentStepKey === 'perfil_dua' && (
+              <StepPerfilDua data={formData} onChange={handleChange} />
+            )}
+            {currentStepKey === 'trayectoria' && (
+              <StepTrayectoriaOa data={formData} onChange={handleChange} estudiante={estudiante} />
+            )}
+            {currentStepKey === 'paec' && (
+              <StepPAEC data={formData} onChange={handleChange} />
+            )}
+            {currentStepKey === 'horario_apoyo' && (
+              <StepHorarioApoyo data={formData} onChange={handleChange} />
+            )}
+            {currentStepKey === 'resumen' && (
+              <StepResumen data={formData} estudiante={estudiante} />
+            )}
+          </div>
+
+          {/* Navigation buttons */}
+          <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-6">
+            <div>
+              {currentStep > 1 && (
+                <Button variant="ghost" onClick={handleBack}>
+                  <ArrowLeft className="h-4 w-4" /> Anterior
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="ghost" onClick={() => navigate('/paci')}>
+                Cancelar
+              </Button>
+              <Button variant="outline" onClick={handleSaveDraft} loading={savingDraft}>
+                <FileDown className="h-4 w-4" /> Guardar borrador
+              </Button>
+              {currentStep < activeSteps.length ? (
+                <Button onClick={handleNext}>
+                  Siguiente <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button onClick={handleSave} loading={saving}>
+                  <Save className="h-4 w-4" /> Guardar PACI
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {aiPanelOpen && (
+          <div className="xl:sticky xl:top-4">
+            <PaciAiAssistantPanel
+              onApplySuggestion={handleApplyAiSuggestion}
+              isOpen={aiPanelOpen}
+              onToggle={() => setAiPanelOpen(false)}
+            />
+          </div>
         )}
       </div>
 
-      {/* Navigation buttons */}
-      <div className="flex items-center justify-between border-t border-slate-200 pt-6">
-        <div>
-          {currentStep > 1 && (
-            <Button variant="ghost" onClick={handleBack}>
-              <ArrowLeft className="h-4 w-4" /> Anterior
-            </Button>
-          )}
-        </div>
-        <div className="flex gap-3">
-          <Button variant="ghost" onClick={() => navigate('/paci')}>
-            Cancelar
-          </Button>
-          <Button variant="outline" onClick={handleSaveDraft} loading={savingDraft}>
-            <FileDown className="h-4 w-4" /> Guardar borrador
-          </Button>
-          {currentStep < activeSteps.length ? (
-            <Button onClick={handleNext}>
-              Siguiente <ArrowRight className="h-4 w-4" />
-            </Button>
-          ) : (
-            <Button onClick={handleSave} loading={saving}>
-              <Save className="h-4 w-4" /> Guardar PACI
-            </Button>
-          )}
-        </div>
-      </div>
+      {!aiPanelOpen && (
+        <button
+          type="button"
+          onClick={() => setAiPanelOpen(true)}
+          className="fixed bottom-6 right-6 z-40 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-accent px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/30 hover:opacity-95"
+        >
+          <MessageSquare className="h-4 w-4" /> Abrir chat IA
+        </button>
+      )}
     </div>
   );
 }
