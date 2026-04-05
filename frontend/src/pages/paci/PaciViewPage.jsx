@@ -322,6 +322,15 @@ export default function PaciViewPage() {
                       {item.adecuacion_oa.estrategias && (
                         <p className="text-slate-600"><strong className="text-slate-700">Estrategias:</strong> {item.adecuacion_oa.estrategias}</p>
                       )}
+                      {item.adecuacion_oa.indicadores_nivelados && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Indicadores Nivelados:</strong> {item.adecuacion_oa.indicadores_nivelados}</p>
+                      )}
+                      {item.adecuacion_oa.actividades_graduales && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Actividades:</strong> {item.adecuacion_oa.actividades_graduales}</p>
+                      )}
+                      {item.adecuacion_oa.lectura_complementaria && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Lectura Complementaria:</strong> {item.adecuacion_oa.lectura_complementaria}</p>
+                      )}
                       {item.adecuacion_oa.criterios_evaluacion && (
                         <p className="text-slate-600"><strong className="text-slate-700">Criterios:</strong> {item.adecuacion_oa.criterios_evaluacion}</p>
                       )}

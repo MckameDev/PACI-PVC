@@ -207,8 +207,17 @@ export default function StepResumen({ data, estudiante }) {
                 {item.adecuacion_oa?.estrategias && (
                   <div className="text-sm"><strong className="text-slate-700">Estrategias Adecuación:</strong> <span className="text-slate-600">{item.adecuacion_oa.estrategias}</span></div>
                 )}
+                {item.adecuacion_oa?.indicadores_nivelados && (
+                  <div className="text-sm"><strong className="text-slate-700">Indicadores Nivelados:</strong> <span className="text-slate-600">{item.adecuacion_oa.indicadores_nivelados}</span></div>
+                )}
                 {item.adecuacion_oa?.adecuaciones && (
                   <div className="text-sm"><strong className="text-slate-700">Adecuaciones:</strong> <span className="text-slate-600">{item.adecuacion_oa.adecuaciones}</span></div>
+                )}
+                {item.adecuacion_oa?.actividades_graduales && (
+                  <div className="text-sm"><strong className="text-slate-700">Actividades Graduales:</strong> <span className="text-slate-600">{item.adecuacion_oa.actividades_graduales}</span></div>
+                )}
+                {item.adecuacion_oa?.lectura_complementaria && (
+                  <div className="text-sm"><strong className="text-slate-700">Lectura Complementaria:</strong> <span className="text-slate-600">{item.adecuacion_oa.lectura_complementaria}</span></div>
                 )}
               </div>
             ))}

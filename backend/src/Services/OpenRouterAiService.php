@@ -100,6 +100,10 @@ PROMPT;
       profesor_jefe, profesor_asignatura, educador_diferencial, aplica_paec,
       paec_activadores, paec_estrategias, paec_desregulacion,
       perfil_dua, trayectoria, horario_apoyo.
+        - Cada item de trayectoria debe incluir, cuando aplique, "adecuacion_oa" con:
+            meta_integradora, estrategias, indicadores_nivelados, adecuaciones,
+            actividades_graduales, lectura_complementaria, instrumento_evaluacion,
+            justificacion, criterios_evaluacion, observaciones.
     - Si no conoces un valor exacto, deja string vacio en vez de inventar ids.
     RULES;
         }
@@ -235,7 +239,206 @@ USER;
             ];
         }
 
+        $contractErrors = $this->validateGeneratedOutputContract($parsed, $runtime);
+        if (!empty($contractErrors)) {
+            return [
+                'validation_error' => 'La salida IA no cumple el contrato pedagógico esperado.',
+                'validation_errors' => $contractErrors,
+                'raw_content' => $parsed,
+            ];
+        }
+
         return $parsed;
+    }
+
+    private function validateGeneratedOutputContract(array $parsed, array $runtime): array
+    {
+        $errors = [];
+        $modo = strtolower((string) ($runtime['parametros']['modo'] ?? ''));
+
+        if (!$this->containsMandatoryClosure($parsed)) {
+            $errors[] = 'Falta el cierre obligatorio: "Generado por AulaInclusiva.cl | Motor Pedagogico PACI".';
+        }
+
+        if ($modo === 'autocompletar_formulario_paci') {
+            $sugerida = $parsed['form_data_sugerida'] ?? null;
+            if (!is_array($sugerida)) {
+                $errors[] = 'No se encontró la estructura "form_data_sugerida".';
+                return $errors;
+            }
+
+            $trayectoria = $sugerida['trayectoria'] ?? null;
+            if (!is_array($trayectoria)) {
+                $errors[] = 'La sección 10 no contiene trayectoria en formato de tabla estructurada.';
+                return $errors;
+            }
+
+            if (count($trayectoria) < 12) {
+                $errors[] = 'La sección 10 requiere al menos 12 filas por unidad (4 por cada eje clave).';
+            }
+
+            $counts = [
+                'lectura' => 0,
+                'escritura' => 0,
+                'comunicacion_oral' => 0,
+            ];
+
+            $requiredColumns = [
+                'EJE' => [],
+                'OA ORIGINAL' => [],
+                'OA ADAPTADO' => [],
+                'INDICADORES' => [],
+                'HABILIDAD' => [],
+                'META' => [],
+                'ESTRATEGIAS' => [],
+                'ACTIVIDADES' => [],
+                'LOGRO' => [],
+            ];
+
+            foreach ($trayectoria as $index => $item) {
+                if (!is_array($item)) {
+                    $rowLabel = '#' . ($index + 1);
+                    foreach ($requiredColumns as $col => $missingRows) {
+                        $requiredColumns[$col][] = $rowLabel;
+                    }
+                    continue;
+                }
+
+                $rowLabel = '#' . ($index + 1);
+
+                $eje = (string) (
+                    $item['_eje']
+                    ?? $item['eje']
+                    ?? ($item['adecuacion_oa']['eje'] ?? '')
+                );
+                $ejeNorm = $this->normalizeForValidation($eje);
+
+                if ($this->containsText($ejeNorm, 'lectura')) {
+                    $counts['lectura'] += 1;
+                }
+                if ($this->containsText($ejeNorm, 'escritura')) {
+                    $counts['escritura'] += 1;
+                }
+                if ($this->containsText($ejeNorm, 'comunicacion') && $this->containsText($ejeNorm, 'oral')) {
+                    $counts['comunicacion_oral'] += 1;
+                }
+
+                if (!$this->hasMeaningfulValue($eje)) {
+                    $requiredColumns['EJE'][] = $rowLabel;
+                }
+
+                $oaOriginal = $item['oa_id'] ?? $item['oa_original'] ?? $item['codigo_oa'] ?? $item['id_oa'] ?? '';
+                if (!$this->hasMeaningfulValue($oaOriginal)) {
+                    $requiredColumns['OA ORIGINAL'][] = $rowLabel;
+                }
+
+                $oaAdaptado = $item['adecuacion_oa']['meta_integradora'] ?? $item['oa_adaptado'] ?? '';
+                if (!$this->hasMeaningfulValue($oaAdaptado)) {
+                    $requiredColumns['OA ADAPTADO'][] = $rowLabel;
+                }
+
+                $indicadoresRaw = $item['adecuacion_oa']['indicadores_nivelados']
+                    ?? (is_array($item['indicadores_seleccionados'] ?? null) ? implode(',', $item['indicadores_seleccionados']) : '')
+                    ?? '';
+                if (!$this->hasMeaningfulValue($indicadoresRaw)) {
+                    $requiredColumns['INDICADORES'][] = $rowLabel;
+                }
+
+                $habilidad = $item['habilidades'] ?? $item['habilidad'] ?? '';
+                if (!$this->hasMeaningfulValue($habilidad)) {
+                    $requiredColumns['HABILIDAD'][] = $rowLabel;
+                }
+
+                $meta = $item['meta_especifica'] ?? $item['adecuacion_oa']['meta_integradora'] ?? '';
+                if (!$this->hasMeaningfulValue($meta)) {
+                    $requiredColumns['META'][] = $rowLabel;
+                }
+
+                $estrategias = $item['estrategias_dua'] ?? $item['adecuacion_oa']['estrategias'] ?? '';
+                if (!$this->hasMeaningfulValue($estrategias)) {
+                    $requiredColumns['ESTRATEGIAS'][] = $rowLabel;
+                }
+
+                $actividades = $item['adecuacion_oa']['actividades_graduales'] ?? $item['actividades'] ?? '';
+                if (!$this->hasMeaningfulValue($actividades)) {
+                    $requiredColumns['ACTIVIDADES'][] = $rowLabel;
+                }
+
+                $logro = $item['eval_criterio'] ?? $item['adecuacion_oa']['criterios_evaluacion'] ?? $item['nivel_logro'] ?? '';
+                if (!$this->hasMeaningfulValue($logro)) {
+                    $requiredColumns['LOGRO'][] = $rowLabel;
+                }
+            }
+
+            if ($counts['lectura'] < 4) {
+                $errors[] = 'Sección 10 incompleta: faltan filas de eje Lectura (mínimo 4).';
+            }
+            if ($counts['escritura'] < 4) {
+                $errors[] = 'Sección 10 incompleta: faltan filas de eje Escritura (mínimo 4).';
+            }
+            if ($counts['comunicacion_oral'] < 4) {
+                $errors[] = 'Sección 10 incompleta: faltan filas de eje Comunicación Oral (mínimo 4).';
+            }
+
+            foreach ($requiredColumns as $columnName => $missingRows) {
+                if (empty($missingRows)) {
+                    continue;
+                }
+
+                $sample = implode(', ', array_slice($missingRows, 0, 3));
+                $extra = count($missingRows) > 3 ? ' ...' : '';
+                $errors[] = 'Sección 10 incompleta: la columna ' . $columnName . ' está vacía en filas ' . $sample . $extra . '.';
+            }
+        }
+
+        return $errors;
+    }
+
+    private function containsMandatoryClosure(array $parsed): bool
+    {
+        $dump = json_encode($parsed, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($dump === false) {
+            return false;
+        }
+
+        $normalizedDump = $this->normalizeForValidation($dump);
+        $expected = $this->normalizeForValidation('Generado por AulaInclusiva.cl | Motor Pedagogico PACI');
+
+        return $this->containsText($normalizedDump, $expected);
+    }
+
+    private function normalizeForValidation(string $value): string
+    {
+        $text = strtolower($value);
+        $text = str_replace(
+            ['á', 'é', 'í', 'ó', 'ú', 'ü', 'ñ'],
+            ['a', 'e', 'i', 'o', 'u', 'u', 'n'],
+            $text
+        );
+
+        return trim($text);
+    }
+
+    private function hasMeaningfulValue($value): bool
+    {
+        if (is_array($value)) {
+            return !empty($value);
+        }
+
+        if (is_bool($value)) {
+            return true;
+        }
+
+        if ($value === null) {
+            return false;
+        }
+
+        return trim((string) $value) !== '';
+    }
+
+    private function containsText(string $haystack, string $needle): bool
+    {
+        return strpos($haystack, $needle) !== false;
     }
 
     private function loadRuntimeConfig(array $data): array
