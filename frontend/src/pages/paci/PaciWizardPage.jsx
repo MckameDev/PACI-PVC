@@ -112,7 +112,10 @@ const normalizeTrayectoriaItem = (item) => ({
   adecuacion_oa: {
     meta_integradora: item?.adecuacion_oa?.meta_integradora || '',
     estrategias: item?.adecuacion_oa?.estrategias || '',
+    indicadores_nivelados: item?.adecuacion_oa?.indicadores_nivelados || '',
     adecuaciones: item?.adecuacion_oa?.adecuaciones || '',
+    actividades_graduales: item?.adecuacion_oa?.actividades_graduales || '',
+    lectura_complementaria: item?.adecuacion_oa?.lectura_complementaria || '',
     instrumento_evaluacion: item?.adecuacion_oa?.instrumento_evaluacion || '',
     justificacion: item?.adecuacion_oa?.justificacion || '',
     criterios_evaluacion: item?.adecuacion_oa?.criterios_evaluacion || '',
@@ -140,6 +143,9 @@ export default function PaciWizardPage() {
   const [savedPaciId, setSavedPaciId] = useState(null);
   const [estudiante, setEstudiante] = useState(null);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [assistantState, setAssistantState] = useState(null);
+  const [fieldHelpRequest, setFieldHelpRequest] = useState(null);
+  const fieldHelpSeq = useRef(0);
 
   // Draft-related state
   const [draftLoading, setDraftLoading] = useState(true);
@@ -208,6 +214,7 @@ export default function PaciWizardPage() {
       const maxSteps = merged.formato_generado === 'Completo' ? COMPLETO_STEPS.length : BASE_STEPS.length;
 
       setFormData(merged);
+      setAssistantState(merged.ai_assistant || null);
       setCurrentStep(Math.min(draftDataRef.current.step, maxSteps));
     }
 
@@ -222,6 +229,7 @@ export default function PaciWizardPage() {
     } catch {
       // ignore
     }
+    setAssistantState(null);
     draftDataRef.current = null;
     draftReady.current = true;
     setDraftModal(false);
@@ -231,16 +239,21 @@ export default function PaciWizardPage() {
   const saveDraft = useCallback(async (fd, step) => {
     if (!draftReady.current) return;
     try {
+      const draftFormData = {
+        ...fd,
+        ai_assistant: assistantState || fd.ai_assistant || null,
+      };
+
       await api.put('/paci-borrador', {
         paso_actual: step,
-        form_data: fd,
+        form_data: draftFormData,
         estudiante_id: fd.estudiante_id || null,
         asignatura_id: fd.asignatura_id || null,
       });
     } catch {
       // silent
     }
-  }, []);
+  }, [assistantState]);
 
   const deleteDraft = useCallback(async () => {
     try {
@@ -286,26 +299,35 @@ export default function PaciWizardPage() {
 
   const handleApplyAiSuggestion = useCallback((suggestion, options = {}) => {
     setFormData((prev) => {
+      const {
+        fortaleza_ids: _omitFortalezas,
+        barrera_ids: _omitBarreras,
+        estrategia_dua_ids: _omitEstrategias,
+        acceso_curricular_ids: _omitAcceso,
+        habilidad_base_ids: _omitHabilidades,
+        ...safeSuggestion
+      } = suggestion || {};
+
       const merged = {
         ...prev,
-        ...suggestion,
+        ...safeSuggestion,
       };
 
-      if (suggestion?.perfil_dua && typeof suggestion.perfil_dua === 'object') {
+      if (safeSuggestion?.perfil_dua && typeof safeSuggestion.perfil_dua === 'object') {
         merged.perfil_dua = {
           ...prev.perfil_dua,
-          ...suggestion.perfil_dua,
+          ...safeSuggestion.perfil_dua,
         };
       }
 
-      if (Array.isArray(suggestion?.trayectoria)) {
-        merged.trayectoria = suggestion.trayectoria.map(normalizeTrayectoriaItem);
+      if (Array.isArray(safeSuggestion?.trayectoria)) {
+        merged.trayectoria = safeSuggestion.trayectoria.map(normalizeTrayectoriaItem);
       }
 
-      if (suggestion?.horario_apoyo && typeof suggestion.horario_apoyo === 'object') {
+      if (safeSuggestion?.horario_apoyo && typeof safeSuggestion.horario_apoyo === 'object') {
         merged.horario_apoyo = {
           ...defaultHorarioApoyo,
-          ...suggestion.horario_apoyo,
+          ...safeSuggestion.horario_apoyo,
         };
       }
 
@@ -318,6 +340,19 @@ export default function PaciWizardPage() {
         message: 'Se aplicó una propuesta generada por IA al formulario PACI. Revisa y confirma antes de guardar.',
       });
     }
+  }, []);
+
+  const handleRequestFieldHelp = useCallback((payload) => {
+    fieldHelpSeq.current += 1;
+    setFieldHelpRequest({
+      id: `help_${fieldHelpSeq.current}`,
+      ...payload,
+    });
+    setAiPanelOpen(true);
+  }, []);
+
+  const handleFieldHelpConsumed = useCallback((helpId) => {
+    setFieldHelpRequest((current) => (current?.id === helpId ? null : current));
   }, []);
 
   // ---------- Validation ----------
@@ -337,6 +372,16 @@ export default function PaciWizardPage() {
           const item = formData.trayectoria[i];
           if (!item.oa_id) return `OA #${i + 1}: Debe seleccionar un Objetivo de Aprendizaje`;
           if (!item.nivel_trabajo_id) return `OA #${i + 1}: Debe seleccionar un Nivel de Trabajo`;
+<<<<<<< HEAD
+=======
+          const selectedIndicadores = Array.isArray(item.indicadores_seleccionados) ? item.indicadores_seleccionados.length : 0;
+          if (selectedIndicadores < 6) {
+            return `OA #${i + 1}: Debe seleccionar al menos 6 indicadores. Recomendación pedagógica obligatoria: 2 de L, 2 de ED y 2 de NL.`;
+          }
+          if (item.tipo_adecuacion === 'Significativa' && !item.justificacion_tecnica?.trim()) {
+            return `OA #${i + 1}: La Justificacion Tecnica es obligatoria para adecuaciones Significativas`;
+          }
+>>>>>>> 21f977eca7bd66da553b8f5d45cdfa7b7fed9b3c
         }
         return null;
       default:
@@ -466,6 +511,7 @@ export default function PaciWizardPage() {
       const res = await api.post('/paci', payload);
       const paciId = res.data.data?.id;
       setSavedPaciId(paciId);
+      setAssistantState(null);
       await deleteDraft();
       setAlert({ type: 'success', message: 'PACI creado exitosamente' });
     } catch (err) {
@@ -553,13 +599,22 @@ export default function PaciWizardPage() {
           {/* Step content */}
           <div>
             {currentStepKey === 'identificacion' && (
-              <StepIdentificacion data={formData} onChange={handleChange} />
+              <StepIdentificacion
+                data={formData}
+                onChange={handleChange}
+                onRequestFieldHelp={handleRequestFieldHelp}
+              />
             )}
             {currentStepKey === 'perfil_dua' && (
               <StepPerfilDua data={formData} onChange={handleChange} />
             )}
             {currentStepKey === 'trayectoria' && (
-              <StepTrayectoriaOa data={formData} onChange={handleChange} estudiante={estudiante} />
+              <StepTrayectoriaOa
+                data={formData}
+                onChange={handleChange}
+                estudiante={estudiante}
+                onRequestFieldHelp={handleRequestFieldHelp}
+              />
             )}
             {currentStepKey === 'paec' && (
               <StepPAEC data={formData} onChange={handleChange} />
@@ -607,6 +662,17 @@ export default function PaciWizardPage() {
               onApplySuggestion={handleApplyAiSuggestion}
               isOpen={aiPanelOpen}
               onToggle={() => setAiPanelOpen(false)}
+              helpRequest={fieldHelpRequest}
+              onHelpRequestHandled={handleFieldHelpConsumed}
+              assistantState={assistantState || formData.ai_assistant || null}
+              onAssistantStateChange={setAssistantState}
+              activeStepMeta={{
+                currentStep,
+                totalSteps: activeSteps.length,
+                currentStepKey,
+                currentStepLabel: activeSteps[currentStep - 1]?.label || '',
+              }}
+              formSnapshot={formData}
             />
           </div>
         )}

@@ -1,10 +1,13 @@
-export default function TextArea({ label, id, error, className = '', rows = 3, ...props }) {
+export default function TextArea({ label, id, error, className = '', rows = 3, labelAction = null, ...props }) {
   return (
     <div className={`space-y-1.5 ${className}`}>
       {label && (
-        <label htmlFor={id} className="block text-sm font-medium text-slate-700">
-          {label}
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+            {label}
+          </label>
+          {labelAction && <div className="shrink-0">{labelAction}</div>}
+        </div>
       )}
       <textarea
         id={id}

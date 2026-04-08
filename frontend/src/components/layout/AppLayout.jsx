@@ -3,7 +3,6 @@ import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import Footer from './Footer';
-import ChatbotWidget from '../ChatbotWidget';
 
 export default function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -27,8 +26,6 @@ export default function AppLayout() {
 
         <Footer />
       </div>
-
-      <ChatbotWidget />
     </div>
   );
 }

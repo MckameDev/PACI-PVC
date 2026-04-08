@@ -252,27 +252,6 @@ export default function IaAdminPage() {
                 onChange={(e) => setConfig((prev) => ({ ...prev, modelo: e.target.value }))}
                 placeholder="openai/gpt-4.1-mini"
               />
-              <Input
-                id="ia_temperature"
-                label="Temperature"
-                type="number"
-                step="0.1"
-                min="0"
-                max="2"
-                value={config.temperature}
-                onChange={(e) => setConfig((prev) => ({ ...prev, temperature: e.target.value }))}
-                error={errors.temperature}
-              />
-              <Input
-                id="ia_max_tokens"
-                label="Max Tokens"
-                type="number"
-                min="100"
-                max="4000"
-                value={config.max_tokens}
-                onChange={(e) => setConfig((prev) => ({ ...prev, max_tokens: e.target.value }))}
-                error={errors.max_tokens}
-              />
             </div>
 
             <div className="flex justify-end">

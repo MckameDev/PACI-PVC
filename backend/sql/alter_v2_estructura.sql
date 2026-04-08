@@ -10,7 +10,7 @@ USE PACI_PVC;
 -- Permite catálogo formal de ejes en lugar de texto libre
 -- ============================================================
 CREATE TABLE IF NOT EXISTS ejes (
-    id CHAR(36) NOT NULL,
+    id CHAR(36) NOT NULL,   
     asignatura_id CHAR(36) NOT NULL,
     nombre VARCHAR(150) NOT NULL,
     vigencia TINYINT(1) NOT NULL DEFAULT 1,
@@ -34,7 +34,10 @@ CREATE TABLE IF NOT EXISTS adecuaciones_oa (
     trayectoria_id CHAR(36) NOT NULL,
     meta_integradora TEXT DEFAULT NULL,
     estrategias TEXT DEFAULT NULL,
+    indicadores_nivelados TEXT DEFAULT NULL,
     adecuaciones TEXT DEFAULT NULL,
+    actividades_graduales TEXT DEFAULT NULL,
+    lectura_complementaria TEXT DEFAULT NULL,
     instrumento_evaluacion TEXT DEFAULT NULL,
     justificacion TEXT DEFAULT NULL,
     criterios_evaluacion TEXT DEFAULT NULL,

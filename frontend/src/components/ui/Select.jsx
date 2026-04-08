@@ -1,10 +1,13 @@
-export default function Select({ label, id, error, options = [], placeholder, className = '', ...props }) {
+export default function Select({ label, id, error, options = [], placeholder, className = '', labelAction = null, ...props }) {
   return (
     <div className={`space-y-1.5 ${className}`}>
       {label && (
-        <label htmlFor={id} className="block text-sm font-medium text-slate-700">
-          {label}
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+            {label}
+          </label>
+          {labelAction && <div className="shrink-0">{labelAction}</div>}
+        </div>
       )}
       <select
         id={id}

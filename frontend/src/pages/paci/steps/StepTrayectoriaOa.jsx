@@ -8,8 +8,12 @@ import Card from '../../../components/ui/Card';
 import Button from '../../../components/ui/Button';
 import Badge from '../../../components/ui/Badge';
 import Alert from '../../../components/ui/Alert';
+import PaciFieldHelpButton from '../components/PaciFieldHelpButton';
 
-export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
+const SIGNIFICATIVA_DIF_THRESHOLD = 2;
+const OA_STEP_PAGE_SIZE = 10;
+
+export default function StepTrayectoriaOa({ data, onChange, estudiante, onRequestFieldHelp }) {
   const [asignaturas, setAsignaturas] = useState([]);
   const [cursosNiveles, setCursosNiveles] = useState([]);
   const [ejesPorAsignatura, setEjesPorAsignatura] = useState({});
@@ -22,6 +26,7 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
   const [expandedMeta, setExpandedMeta] = useState({});
   const [evalSugerencias, setEvalSugerencias] = useState({});
   const [coreSugerencias, setCoreSugerencias] = useState({});
+  const [oaVisibleCountByIndex, setOaVisibleCountByIndex] = useState({});
 
   const trayectoria = data.trayectoria || [];
   const paciAsignaturaId = data.asignatura_id || '';
@@ -178,14 +183,14 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
 
     // Calculate DIF when nivel_trabajo_id changes
     if (field === 'nivel_trabajo_id' && value) {
-      const nivelTrabajo = cursosNiveles.find((c) => c.id === value);
+      const nivelTrabajo = cursosNiveles.find((c) => String(c.id) === String(value));
       if (nivelTrabajo) {
         const dif = nivelOficial - (nivelTrabajo.valor_numerico || 0);
         newTray[index].diferencia_calculada = dif;
-        newTray[index].tipo_adecuacion = dif >= 3 ? 'Significativa' : 'Acceso';
+        newTray[index].tipo_adecuacion = dif >= SIGNIFICATIVA_DIF_THRESHOLD ? 'Significativa' : 'Acceso';
 
         // Pre-fill justificación for Significativa
-        if (dif >= 3 && !newTray[index].justificacion_tecnica) {
+        if (dif >= SIGNIFICATIVA_DIF_THRESHOLD && !newTray[index].justificacion_tecnica) {
           newTray[index].justificacion_tecnica =
             'La presente adecuación curricular significativa se fundamenta en evaluación diagnóstica funcional que evidencia desfase en habilidades estructurantes del aprendizaje, requiriendo intervención en niveles previos para asegurar progresión, acceso curricular y continuidad formativa.';
         }
@@ -194,9 +199,10 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
         if (newTray[index]._asignatura_id) {
           loadOas(newTray[index]._asignatura_id, value, index);
         }
+        setOaVisibleCountByIndex((prev) => ({ ...prev, [index]: OA_STEP_PAGE_SIZE }));
 
         // Load eval suggestions for Significativa
-        if (dif >= 3) {
+        if (dif >= SIGNIFICATIVA_DIF_THRESHOLD) {
           const oa = findOa(newTray[index]._asignatura_id, value, newTray[index].oa_id);
           if (oa?.habilidad_core) {
             loadEvalSugerencias(index, oa.habilidad_core, value, 'Significativa');
@@ -213,11 +219,13 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
       newTray[index].nivel_trabajo_id = '';
       newTray[index].diferencia_calculada = 0;
       newTray[index].tipo_adecuacion = 'Acceso';
+      setOaVisibleCountByIndex((prev) => ({ ...prev, [index]: OA_STEP_PAGE_SIZE }));
     }
 
     // When eje changes, reset OA (eje is client-side filter only)
     if (field === '_eje') {
       newTray[index].oa_id = '';
+      setOaVisibleCountByIndex((prev) => ({ ...prev, [index]: OA_STEP_PAGE_SIZE }));
     }
 
     // When OA changes, load indicadores
@@ -246,7 +254,10 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
         adecuacion_oa: {
           meta_integradora: '',
           estrategias: '',
+          indicadores_nivelados: '',
           adecuaciones: '',
+          actividades_graduales: '',
+          lectura_complementaria: '',
           instrumento_evaluacion: '',
           justificacion: '',
           criterios_evaluacion: '',
@@ -281,10 +292,43 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
     onChange('trayectoria', newTray);
   };
 
+  const applyCoreSugerencia = (index) => {
+    const core = coreSugerencias[index];
+    if (!core) return;
+
+    const estrategia = core.estrategias?.[0] || null;
+    const activacion = core.activaciones?.[0] || null;
+    const adecuacion = core.adecuaciones?.[0] || null;
+
+    const newTray = [...trayectoria];
+    const current = newTray[index] || {};
+    const currentAdec = current.adecuacion_oa || {};
+
+    newTray[index] = {
+      ...current,
+      estrategias_dua: current.estrategias_dua || (estrategia?.estrategia || ''),
+      seguimiento_registro: current.seguimiento_registro || (activacion?.estrategia_sugerida || ''),
+      adecuacion_oa: {
+        ...currentAdec,
+        estrategias: currentAdec.estrategias || (estrategia?.estrategia || ''),
+        adecuaciones: currentAdec.adecuaciones || (adecuacion?.descripcion || ''),
+        actividades_graduales: currentAdec.actividades_graduales || (activacion?.actividad_sugerida || ''),
+        lectura_complementaria: currentAdec.lectura_complementaria || 'Lectura guiada progresiva con apoyo visual y fonológico según nivel de desempeño.',
+      },
+    };
+
+    onChange('trayectoria', newTray);
+  };
+
   const findOa = (asignaturaId, nivelId, oaId) => {
     const key = `${asignaturaId}_${nivelId}`;
     const oas = oaList[key] || [];
-    return oas.find((o) => o.id === oaId);
+    return oas.find((o) => String(o.id) === String(oaId));
+  };
+
+  const requestHelp = (title, description, meaning) => {
+    if (!onRequestFieldHelp) return;
+    onRequestFieldHelp({ title, description, meaning });
   };
 
   const toggleIndicadores = (index) => {
@@ -312,12 +356,37 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
     onChange('trayectoria', newTray);
   };
 
+  const getSelectedByLevel = (item, indicadores) => {
+    const selectedIds = new Set(item?.indicadores_seleccionados || []);
+    const selectedL = (indicadores?.L || []).filter((ind) => selectedIds.has(ind.id)).length;
+    const selectedED = (indicadores?.ED || []).filter((ind) => selectedIds.has(ind.id)).length;
+    const selectedNL = (indicadores?.NL || []).filter((ind) => selectedIds.has(ind.id)).length;
+
+    return {
+      L: selectedL,
+      ED: selectedED,
+      NL: selectedNL,
+      isComplete: selectedL >= 2 && selectedED >= 2 && selectedNL >= 2,
+    };
+  };
+
+  const showMoreOa = (index) => {
+    setOaVisibleCountByIndex((prev) => ({
+      ...prev,
+      [index]: (prev[index] || OA_STEP_PAGE_SIZE) + OA_STEP_PAGE_SIZE,
+    }));
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Paso 3: Trayectoria de Objetivos de Aprendizaje</h2>
         <p className="text-sm text-secondary mt-1">
+<<<<<<< HEAD
           Agregue los OA a trabajar. El sistema calculará automáticamente el tipo de adecuación según la diferencia entre el nivel oficial y el nivel de trabajo. <strong>La advertencia de Adecuación Significativa es informativa y puede completarse después.</strong>
+=======
+          Agregue los OA a trabajar. El sistema calcula automáticamente el tipo de adecuación según la diferencia entre nivel oficial y nivel de trabajo. Si el desfase es de 2 o más niveles, se recomienda adecuación significativa.
+>>>>>>> 21f977eca7bd66da553b8f5d45cdfa7b7fed9b3c
         </p>
         {nivelOficial > 0 && (
           <p className="text-sm text-primary font-medium mt-1">
@@ -332,11 +401,14 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
         const oaKey = `${item._asignatura_id}_${item.nivel_trabajo_id}`;
         const allOas = oaList[oaKey] || [];
         const oas = item._eje ? allOas.filter(o => o.eje === item._eje) : allOas;
+        const visibleOaCount = oaVisibleCountByIndex[index] || OA_STEP_PAGE_SIZE;
+        const visibleOas = oas.slice(0, visibleOaCount);
         const selectedOa = findOa(item._asignatura_id, item.nivel_trabajo_id, item.oa_id);
         const isSignificativa = item.tipo_adecuacion === 'Significativa';
         const sug = evalSugerencias[index];
         const indicadores = indicadoresPorOa[item.oa_id] || { L: [], ED: [], NL: [] };
         const hasIndicadores = indicadores.L.length > 0 || indicadores.ED.length > 0 || indicadores.NL.length > 0;
+        const selectedByLevel = getSelectedByLevel(item, indicadores);
 
         return (
           <Card
@@ -386,10 +458,30 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
                   value: c.id,
                   label: `${c.nombre} (valor: ${c.valor_numerico})`,
                 }))}
+                labelAction={
+                  <PaciFieldHelpButton
+                    title="Nivel de trabajo"
+                    onClick={() => requestHelp(
+                      'Nivel de trabajo',
+                      'Es el nivel curricular con el que se trabajará el OA. La IA puede usarlo para calcular diferencias, sugerir adecuaciones y cargar OAs compatibles.',
+                      'Determina el piso pedagógico desde el cual se adapta el objetivo.'
+                    )}
+                  />
+                }
               />
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">Unidad</label>
+                <div className="mb-1.5 flex items-center justify-between gap-2">
+                  <label className="block text-sm font-medium text-slate-700">Unidad</label>
+                  <PaciFieldHelpButton
+                    title="Unidad"
+                    onClick={() => requestHelp(
+                      'Unidad',
+                      'Es el tramo o unidad de la asignatura sobre la cual se organiza la trayectoria. Ayuda a ubicar el OA dentro de la planificación.',
+                      'Sirve para contextualizar el contenido dentro de la secuencia de clases.'
+                    )}
+                  />
+                </div>
                 <select
                   className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                   value={item._unidad || ''}
@@ -424,7 +516,7 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
                   </div>
                   <div className={`text-xs mt-1 font-medium ${isSignificativa ? 'text-warning' : 'text-success'}`}>
                     Tipo: {item.tipo_adecuacion}
-                    {isSignificativa && ' — Advertencia: DIF ≥ 3'}
+                    {isSignificativa && ` — Advertencia: DIF ≥ ${SIGNIFICATIVA_DIF_THRESHOLD}`}
                   </div>
                 </div>
               </div>
@@ -443,12 +535,33 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
               placeholder={loadingOa[index] ? 'Cargando OAs...' : (!item._asignatura_id || !item.nivel_trabajo_id) ? 'Seleccione asignatura y nivel primero' : oas.length === 0 && item._eje ? `No hay OAs para el eje "${item._eje}"` : oas.length === 0 ? 'No se encontraron OAs para esta combinación' : 'Seleccione OA'}
               value={item.oa_id}
               onChange={(val) => updateItem(index, 'oa_id', val)}
-              options={oas.map((o) => ({
+              options={visibleOas.map((o) => ({
                 value: o.id,
                 label: `${o.codigo_oa || o.id_oa} — ${o.texto_oa?.substring(0, 80)}...`,
               }))}
+              labelAction={
+                <PaciFieldHelpButton
+                  title="Objetivo de aprendizaje"
+                  onClick={() => requestHelp(
+                    'Objetivo de aprendizaje',
+                    'Es el OA oficial que se quiere adaptar. La IA puede usarlo para proponer meta integradora, estrategias, indicadores y adecuaciones.',
+                    'Es el contenido curricular central que el estudiante trabajará con ajustes.'
+                  )}
+                />
+              }
               disabled={!item._asignatura_id || !item.nivel_trabajo_id || loadingOa[index]}
             />
+
+            {oas.length > visibleOaCount && (
+              <div className="-mt-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <span className="text-xs text-slate-600">
+                  Mostrando {visibleOaCount} de {oas.length} OA para esta combinación.
+                </span>
+                <Button size="sm" variant="outline" onClick={() => showMoreOa(index)}>
+                  Ver más OA
+                </Button>
+              </div>
+            )}
 
             {/* OA Detail */}
             {selectedOa && (
@@ -479,14 +592,24 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
                       Indicadores de Evaluación {(item.indicadores_seleccionados || []).length > 0 && (
                         <Badge color="accent">{(item.indicadores_seleccionados || []).length} seleccionados</Badge>
                       )}
+                      {hasIndicadores && !selectedByLevel.isComplete && (
+                        <Badge color="danger">Falta cubrir niveles</Badge>
+                      )}
+                      {hasIndicadores && selectedByLevel.isComplete && (
+                        <Badge color="success">Niveles completos</Badge>
+                      )}
                       {loadingIndicadores[item.oa_id] && <span className="text-xs text-secondary">(Cargando...)</span>}
                     </button>
 
                     {expandedIndicadores[index] && hasIndicadores && (
                       <div className="mt-3 space-y-4">
                         <p className="text-xs text-secondary">
-                          Seleccione los indicadores que se utilizarán para evaluar este OA. Se recomienda al menos 1 indicador.
+                          Seleccione indicadores por nivel. Regla pedagógica: al menos 2 en L, 2 en ED y 2 en NL.
                         </p>
+                        <div className={`rounded-lg border p-2 text-xs ${selectedByLevel.isComplete ? 'border-success/40 bg-success/5 text-success' : 'border-warning/40 bg-warning/5 text-warning'}`}>
+                          Cobertura actual: L {selectedByLevel.L} | ED {selectedByLevel.ED} | NL {selectedByLevel.NL}
+                          {!selectedByLevel.isComplete ? ' (completa al menos dos por nivel).' : ' (cumple requisito por niveles).'}
+                        </div>
                         {[
                           { key: 'L', label: 'Logrado (L)', color: 'success' },
                           { key: 'ED', label: 'En Desarrollo (ED)', color: 'warning' },
@@ -575,11 +698,38 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
                     />
 
                     <TextArea
+                      id={`oa_indicadores_nivelados_${index}`}
+                      label="Indicadores Nivelados (Inicial / Intermedio / Avanzado)"
+                      placeholder="Ej: Inicial: sonidos vocálicos. Intermedio: fonema-grafema. Avanzado: sílaba inicial."
+                      value={item.adecuacion_oa?.indicadores_nivelados || ''}
+                      onChange={(e) => updateAdecuacionOa(index, 'indicadores_nivelados', e.target.value)}
+                      rows={3}
+                    />
+
+                    <TextArea
                       id={`oa_adecuaciones_${index}`}
                       label="Adecuaciones Curriculares"
                       placeholder="Describa las adecuaciones curriculares aplicadas..."
                       value={item.adecuacion_oa?.adecuaciones || ''}
                       onChange={(e) => updateAdecuacionOa(index, 'adecuaciones', e.target.value)}
+                      rows={2}
+                    />
+
+                    <TextArea
+                      id={`oa_actividades_${index}`}
+                      label="Actividades Graduales"
+                      placeholder="Ej: 1) Bingo fonético. 2) Clasificación por sonido inicial. 3) App interactiva."
+                      value={item.adecuacion_oa?.actividades_graduales || ''}
+                      onChange={(e) => updateAdecuacionOa(index, 'actividades_graduales', e.target.value)}
+                      rows={3}
+                    />
+
+                    <TextArea
+                      id={`oa_lectura_complementaria_${index}`}
+                      label="Lectura Complementaria"
+                      placeholder="Texto o actividad de lectura complementaria para reforzar el OA adaptado..."
+                      value={item.adecuacion_oa?.lectura_complementaria || ''}
+                      onChange={(e) => updateAdecuacionOa(index, 'lectura_complementaria', e.target.value)}
                       rows={2}
                     />
 
@@ -745,9 +895,16 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
                         <Zap className="h-4 w-4" />
                         <span className="text-sm font-semibold">Sugerencia de Evaluación Diferenciada</span>
                       </div>
-                      <Button size="sm" variant="accent" onClick={() => applyEvalSugerencia(index)}>
-                        Aplicar Sugerencia
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="accent" onClick={() => applyEvalSugerencia(index)}>
+                          Aplicar Eval
+                        </Button>
+                        {coreSugerencias[index] && (
+                          <Button size="sm" variant="outline" onClick={() => applyCoreSugerencia(index)}>
+                            Aplicar Core
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div className="text-sm text-slate-600 space-y-1">
                       <p><strong>Modalidad:</strong> {sug.modalidad_sugerida}</p>

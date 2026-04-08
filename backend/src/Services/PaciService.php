@@ -91,7 +91,7 @@ class PaciService
                        cn.nombre as estudiante_curso, cn.valor_numerico as estudiante_curso_valor,
                        est.nombre as establecimiento_nombre, est.region as establecimiento_region,
                        est.comuna as establecimiento_comuna,
-                       u.nombre as usuario_nombre, u.rol as usuario_rol,
+                      u.nombre as usuario_nombre, u.rol as usuario_rol, u.email as usuario_email,
                        a.nombre as asignatura_nombre, a.codigo as asignatura_codigo
                 FROM paci p
                 LEFT JOIN estudiantes e ON e.id = p.estudiante_id
@@ -257,9 +257,19 @@ class PaciService
                     $trayId = $trayectoriaIds[$index] ?? null;
                     if (!$trayId) continue;
 
+                    $indicadoresSeleccionados = !empty($item['indicadores_seleccionados']) && is_array($item['indicadores_seleccionados'])
+                        ? $item['indicadores_seleccionados']
+                        : [];
+
+                    $this->validateIndicadoresPorNivel(
+                        (string) ($item['oa_id'] ?? ''),
+                        $indicadoresSeleccionados,
+                        $index
+                    );
+
                     // Indicadores seleccionados
-                    if (!empty($item['indicadores_seleccionados']) && is_array($item['indicadores_seleccionados'])) {
-                        $this->insertAdecuacionIndicadores($trayId, $item['indicadores_seleccionados'], $userId);
+                    if (!empty($indicadoresSeleccionados)) {
+                        $this->insertAdecuacionIndicadores($trayId, $indicadoresSeleccionados, $userId);
                     }
 
                     // Adecuación OA (meta integradora)
@@ -448,6 +458,69 @@ class PaciService
         }
     }
 
+    // Valida que, si el OA tiene indicadores, se seleccionen al menos dos por nivel (L, ED, NL)
+    private function validateIndicadoresPorNivel(string $oaId, array $indicadorIds, int $index): void
+    {
+        if (!UUID::isValid($oaId)) {
+            return;
+        }
+
+        $stmtAvailable = $this->db->prepare(
+            "SELECT nivel_desempeno, COUNT(*) AS total
+             FROM indicadores
+             WHERE oa_id = :oa_id AND vigencia = 1
+             GROUP BY nivel_desempeno"
+        );
+        $stmtAvailable->execute([':oa_id' => $oaId]);
+        $availableRows = $stmtAvailable->fetchAll(PDO::FETCH_ASSOC);
+
+        // Si el OA no tiene indicadores configurados, no se bloquea el guardado.
+        if (empty($availableRows)) {
+            return;
+        }
+
+        $validIds = array_values(array_filter($indicadorIds, static fn($id) => UUID::isValid((string) $id)));
+        if (empty($validIds)) {
+            throw new \RuntimeException(
+                "Trayectoria [" . ($index + 1) . "]: debes seleccionar indicadores de evaluación (mínimo dos por nivel L, ED y NL)."
+            );
+        }
+
+        $placeholders = [];
+        $params = [':oa_id' => $oaId];
+        foreach ($validIds as $i => $id) {
+            $ph = ':id_' . $i;
+            $placeholders[] = $ph;
+            $params[$ph] = $id;
+        }
+
+        $sqlSelected = "SELECT nivel_desempeno, COUNT(*) AS total
+                        FROM indicadores
+                        WHERE oa_id = :oa_id
+                          AND vigencia = 1
+                          AND id IN (" . implode(', ', $placeholders) . ")
+                        GROUP BY nivel_desempeno";
+
+        $stmtSelected = $this->db->prepare($sqlSelected);
+        $stmtSelected->execute($params);
+        $selectedRows = $stmtSelected->fetchAll(PDO::FETCH_ASSOC);
+
+        $selectedByLevel = ['L' => 0, 'ED' => 0, 'NL' => 0];
+        foreach ($selectedRows as $row) {
+            $level = (string) ($row['nivel_desempeno'] ?? '');
+            if (array_key_exists($level, $selectedByLevel)) {
+                $selectedByLevel[$level] = (int) ($row['total'] ?? 0);
+            }
+        }
+
+        $missing = array_keys(array_filter($selectedByLevel, static fn($count) => $count < 2));
+        if (!empty($missing)) {
+            throw new \RuntimeException(
+                "Trayectoria [" . ($index + 1) . "]: faltan indicadores por nivel (" . implode(', ', $missing) . "). Debes elegir al menos dos en L, ED y NL."
+            );
+        }
+    }
+
     // Inserta indicadores seleccionados para una trayectoria
     private function insertAdecuacionIndicadores(string $trayectoriaId, array $indicadorIds, ?string $userId): void
     {
@@ -471,9 +544,11 @@ class PaciService
     private function insertAdecuacionOa(string $paciId, string $trayectoriaId, array $adec, ?string $userId): void
     {
         $sql = "INSERT INTO adecuaciones_oa (id, paci_id, trayectoria_id, meta_integradora, estrategias,
-                adecuaciones, instrumento_evaluacion, justificacion, criterios_evaluacion, observaciones,
+                indicadores_nivelados, adecuaciones, actividades_graduales, lectura_complementaria,
+                instrumento_evaluacion, justificacion, criterios_evaluacion, observaciones,
                 vigencia, created_by, updated_by)
-                VALUES (:id, :paci_id, :tray_id, :meta, :estrategias, :adec, :instrumento, :justificacion,
+                VALUES (:id, :paci_id, :tray_id, :meta, :estrategias, :indicadores_nivelados, :adec,
+                :actividades_graduales, :lectura_complementaria, :instrumento, :justificacion,
                 :criterios, :observaciones, 1, :created_by, :updated_by)";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -482,7 +557,10 @@ class PaciService
             ':tray_id'       => $trayectoriaId,
             ':meta'          => $adec['meta_integradora'] ?? null,
             ':estrategias'   => $adec['estrategias'] ?? null,
+            ':indicadores_nivelados' => $adec['indicadores_nivelados'] ?? null,
             ':adec'          => $adec['adecuaciones'] ?? null,
+            ':actividades_graduales' => $adec['actividades_graduales'] ?? null,
+            ':lectura_complementaria' => $adec['lectura_complementaria'] ?? null,
             ':instrumento'   => $adec['instrumento_evaluacion'] ?? null,
             ':justificacion' => $adec['justificacion'] ?? null,
             ':criterios'     => $adec['criterios_evaluacion'] ?? null,
