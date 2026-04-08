@@ -337,9 +337,6 @@ export default function PaciWizardPage() {
           const item = formData.trayectoria[i];
           if (!item.oa_id) return `OA #${i + 1}: Debe seleccionar un Objetivo de Aprendizaje`;
           if (!item.nivel_trabajo_id) return `OA #${i + 1}: Debe seleccionar un Nivel de Trabajo`;
-          if (item.tipo_adecuacion === 'Significativa' && !item.justificacion_tecnica?.trim()) {
-            return `OA #${i + 1}: La Justificacion Tecnica es obligatoria para adecuaciones Significativas`;
-          }
         }
         return null;
       default:

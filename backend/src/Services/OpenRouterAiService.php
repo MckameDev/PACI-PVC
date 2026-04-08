@@ -32,7 +32,7 @@ BLOQUE 2: INTELIGENCIA CURRICULAR (CONEXION BD)
 - Solicitar: Asignatura, Unidad y Eje.
 - REGLA DE DESFASE: Si el perfil del estudiante muestra un rezago >= 2 niveles respecto a su curso, sugerir obligatoriamente bajar el nivel del OA (Adecuacion Significativa).
 - SELECTOR DE OA: Mostrar los OA de la base de datos filtrados por Eje. Si hay mas de 10, usar paginacion ("ver mas").
-- SELECTOR DE INDICADORES: Presentar 6 indicadores (2 Iniciales, 2 Intermedios, 2 Avanzados). El docente debe elegir al menos uno de cada nivel.
+- SELECTOR DE INDICADORES: Presentar 6 indicadores (2 Iniciales, 2 Intermedios, 2 Avanzados). El docente puede elegir indicadores de forma flexible según la necesidad pedagógica.
 
 BLOQUE 3: DISENO PEDAGOGICO
 

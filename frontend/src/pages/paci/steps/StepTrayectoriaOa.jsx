@@ -317,7 +317,7 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Paso 3: Trayectoria de Objetivos de Aprendizaje</h2>
         <p className="text-sm text-secondary mt-1">
-          Agregue los OA a trabajar. El sistema calculará automáticamente el tipo de adecuación según la diferencia entre el nivel oficial y el nivel de trabajo. <strong>La advertencia de Adecuación Significativa es informativa, no bloquea la selección.</strong>
+          Agregue los OA a trabajar. El sistema calculará automáticamente el tipo de adecuación según la diferencia entre el nivel oficial y el nivel de trabajo. <strong>La advertencia de Adecuación Significativa es informativa y puede completarse después.</strong>
         </p>
         {nivelOficial > 0 && (
           <p className="text-sm text-primary font-medium mt-1">
@@ -725,7 +725,7 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante }) {
               <div className="space-y-4 border-t border-warning/30 pt-4">
                 <div className="flex items-center gap-2 text-warning">
                   <AlertTriangle className="h-4 w-4" />
-                  <span className="text-sm font-semibold">Adecuación Significativa — Se recomienda completar</span>
+                      <span className="text-sm font-semibold">Adecuación Significativa — Opcional por ahora</span>
                 </div>
 
                 <TextArea
