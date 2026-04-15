@@ -20,6 +20,11 @@ import {
   MessageSquare,
   Grid,
   Brain,
+  Star,
+  ShieldAlert,
+  Compass,
+  Sparkles,
+  Puzzle,
 } from 'lucide-react';
 import useAuthStore from '../../stores/useAuthStore';
 
@@ -54,6 +59,16 @@ const adminSections = [
       { to: '/ejes', icon: Layers, label: 'Ejes' },
       { to: '/indicadores', icon: ListChecks, label: 'Indicadores' },
       { to: '/evaluaciones', icon: ClipboardCheck, label: 'Evaluaciones' },
+    ],
+  },
+  {
+    label: 'Perfil DUA',
+    items: [
+      { to: '/dua/fortalezas', icon: Star, label: 'Fortalezas' },
+      { to: '/dua/barreras', icon: ShieldAlert, label: 'Barreras' },
+      { to: '/dua/acceso-curricular', icon: Compass, label: 'Acceso Curricular' },
+      { to: '/dua/estrategias', icon: Sparkles, label: 'Estrategias DUA' },
+      { to: '/dua/habilidades-base', icon: Puzzle, label: 'Habilidades Base' },
     ],
   },
   {

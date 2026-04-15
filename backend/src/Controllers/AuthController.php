@@ -64,6 +64,7 @@ class AuthController
                 'rol'                => $user['rol'],
                 'establecimiento_id' => $user['establecimiento_id'] ?? null,
                 'limite_estudiantes' => $user['limite_estudiantes'] ?? 5,
+                'paec_habilitado'    => (int) ($user['paec_habilitado'] ?? 0),
             ],
         ]);
     }

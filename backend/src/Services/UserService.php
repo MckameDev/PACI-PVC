@@ -47,8 +47,8 @@ class UserService
         $total = (int) $countStmt->fetch()['total'];
 
         $sql = "SELECT u.id, u.nombre, u.email, u.rol, u.establecimiento_id,
-                       u.limite_estudiantes, u.limite_paci, u.vigencia,
-                       u.created_at, u.updated_at,
+                       u.limite_estudiantes, u.limite_paci, u.paec_habilitado,
+                       u.vigencia, u.created_at, u.updated_at,
                        e.nombre as establecimiento_nombre
                 FROM users u
                 LEFT JOIN establecimientos e ON e.id = u.establecimiento_id
@@ -98,6 +98,7 @@ class UserService
             'establecimiento_id' => 'nullable|uuid',
             'limite_estudiantes' => 'nullable|integer|min:1',
             'limite_paci'        => 'nullable|integer|min:1',
+            'paec_habilitado'    => 'nullable|boolean',
         ]);
 
         if (!empty($validator->getErrors())) {
@@ -163,6 +164,7 @@ class UserService
             'establecimiento_id' => 'nullable|uuid',
             'limite_estudiantes' => 'nullable|integer|min:1',
             'limite_paci'        => 'nullable|integer|min:1',
+            'paec_habilitado'    => 'nullable|boolean',
         ]);
 
         if (!empty($validator->getErrors())) {

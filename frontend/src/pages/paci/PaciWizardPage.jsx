@@ -132,7 +132,7 @@ const normalizeTrayectoriaItem = (item) => ({
 
 export default function PaciWizardPage() {
   const navigate = useNavigate();
-  useAuthStore((s) => s.user);
+  const user = useAuthStore((s) => s.user);
 
   // ---------- State ----------
   const [currentStep, setCurrentStep] = useState(1);
@@ -154,7 +154,8 @@ export default function PaciWizardPage() {
   const draftDataRef = useRef(null);
   const draftReady = useRef(false);
 
-  const activeSteps = formData.formato_generado === 'Completo' ? COMPLETO_STEPS : BASE_STEPS;
+  const allSteps = formData.formato_generado === 'Completo' ? COMPLETO_STEPS : BASE_STEPS;
+  const activeSteps = user?.paec_habilitado ? allSteps : allSteps.filter((s) => s.key !== 'paec');
   const currentStepKey = activeSteps[currentStep - 1]?.key;
 
   useEffect(() => {
@@ -368,21 +369,18 @@ export default function PaciWizardPage() {
         return null;
       case 'trayectoria':
         if (formData.trayectoria.length === 0) return 'Debe agregar al menos un Objetivo de Aprendizaje';
-        for (let i = 0; i < formData.trayectoria.length; i += 1) {
-          const item = formData.trayectoria[i];
-          if (!item.oa_id) return `OA #${i + 1}: Debe seleccionar un Objetivo de Aprendizaje`;
-          if (!item.nivel_trabajo_id) return `OA #${i + 1}: Debe seleccionar un Nivel de Trabajo`;
-<<<<<<< HEAD
-=======
-          const selectedIndicadores = Array.isArray(item.indicadores_seleccionados) ? item.indicadores_seleccionados.length : 0;
-          if (selectedIndicadores < 6) {
-            return `OA #${i + 1}: Debe seleccionar al menos 6 indicadores. Recomendación pedagógica obligatoria: 2 de L, 2 de ED y 2 de NL.`;
-          }
-          if (item.tipo_adecuacion === 'Significativa' && !item.justificacion_tecnica?.trim()) {
-            return `OA #${i + 1}: La Justificacion Tecnica es obligatoria para adecuaciones Significativas`;
-          }
->>>>>>> 21f977eca7bd66da553b8f5d45cdfa7b7fed9b3c
+      for (let i = 0; i < formData.trayectoria.length; i += 1) {
+        const item = formData.trayectoria[i];
+        if (!item.oa_id) return `OA #${i + 1}: Debe seleccionar un Objetivo de Aprendizaje`;
+        if (!item.nivel_trabajo_id) return `OA #${i + 1}: Debe seleccionar un Nivel de Trabajo`;
+        const selectedIndicadores = Array.isArray(item.indicadores_seleccionados) ? item.indicadores_seleccionados.length : 0;
+        if (selectedIndicadores < 6) {
+          return `OA #${i + 1}: Debe seleccionar al menos 6 indicadores. Recomendación pedagógica obligatoria: 2 de L, 2 de ED y 2 de NL.`;
         }
+        if (item.tipo_adecuacion === 'Significativa' && !item.justificacion_tecnica?.trim()) {
+          return `OA #${i + 1}: La Justificacion Tecnica es obligatoria para adecuaciones Significativas`;
+        }
+      }
         return null;
       default:
         return null;

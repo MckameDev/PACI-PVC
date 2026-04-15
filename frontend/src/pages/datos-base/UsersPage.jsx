@@ -28,7 +28,7 @@ const ROLE_COLORS = {
   Especialista: 'warning',
 };
 
-const EMPTY_FORM = { nombre: '', email: '', password: '', rol: 'Docente', limite_estudiantes: '5', establecimiento_id: '', profesor_especialidad: '', profesor_cargo: '' };
+const EMPTY_FORM = { nombre: '', email: '', password: '', rol: 'Docente', limite_estudiantes: '5', establecimiento_id: '', profesor_especialidad: '', profesor_cargo: '', paec_habilitado: '0' };
 
 export default function UsersPage() {
   const [items, setItems] = useState([]);
@@ -93,6 +93,7 @@ export default function UsersPage() {
       establecimiento_id: item.establecimiento_id || '',
       profesor_especialidad: item.profesor_especialidad || '',
       profesor_cargo: item.profesor_cargo || '',
+      paec_habilitado: item.paec_habilitado?.toString() || '0',
     });
     setFormErrors({});
     setFormModal(true);
@@ -116,6 +117,7 @@ export default function UsersPage() {
         rol: formData.rol,
         limite_estudiantes: parseInt(formData.limite_estudiantes, 10) || 5,
         establecimiento_id: formData.establecimiento_id || null,
+        paec_habilitado: parseInt(formData.paec_habilitado, 10) || 0,
       };
       if (formData.password) payload.password = formData.password;
       if (formData.rol === 'Docente' || formData.rol === 'Especialista') {
@@ -330,6 +332,19 @@ export default function UsersPage() {
               onChange={(e) => setFormData({ ...formData, limite_estudiantes: e.target.value })}
               placeholder="5"
             />
+          </div>
+          <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label htmlFor="paec_habilitado" className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+              <input
+                id="paec_habilitado"
+                type="checkbox"
+                checked={formData.paec_habilitado === '1' || formData.paec_habilitado === 1}
+                onChange={(e) => setFormData({ ...formData, paec_habilitado: e.target.checked ? '1' : '0' })}
+                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20 cursor-pointer"
+              />
+              Habilitar PAEC
+            </label>
+            <span className="text-xs text-slate-500">Permite al usuario acceder a la sección PAEC en el formulario PACI</span>
           </div>
           <SearchSelect
             label="Establecimiento"

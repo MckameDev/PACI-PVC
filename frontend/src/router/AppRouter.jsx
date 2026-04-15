@@ -33,6 +33,11 @@ import ChatbotAdminPage from '../pages/datos-base/ChatbotAdminPage';
 import IaAdminPage from '../pages/datos-base/IaAdminPage';
 import MatricesAdminPage from '../pages/datos-base/MatricesAdminPage';
 import CoreAdminPage from '../pages/datos-base/CoreAdminPage';
+import DuaFortalezasPage from '../pages/datos-base/DuaFortalezasPage';
+import DuaBarrerasPage from '../pages/datos-base/DuaBarrerasPage';
+import DuaAccesoCurricularPage from '../pages/datos-base/DuaAccesoCurricularPage';
+import DuaEstrategiasPage from '../pages/datos-base/DuaEstrategiasPage';
+import DuaHabilidadesBasePage from '../pages/datos-base/DuaHabilidadesBasePage';
 
 function PublicRoute({ children }) {
   const token = useAuthStore((s) => s.token);
@@ -89,6 +94,11 @@ export default function AppRouter() {
               <Route path="ia-admin" element={<IaAdminPage />} />
               <Route path="matrices" element={<MatricesAdminPage />} />
               <Route path="core-curricular" element={<CoreAdminPage />} />
+              <Route path="dua/fortalezas" element={<DuaFortalezasPage />} />
+              <Route path="dua/barreras" element={<DuaBarrerasPage />} />
+              <Route path="dua/acceso-curricular" element={<DuaAccesoCurricularPage />} />
+              <Route path="dua/estrategias" element={<DuaEstrategiasPage />} />
+              <Route path="dua/habilidades-base" element={<DuaHabilidadesBasePage />} />
             </Route>
 
             <Route path="*" element={<NotFoundPage />} />
