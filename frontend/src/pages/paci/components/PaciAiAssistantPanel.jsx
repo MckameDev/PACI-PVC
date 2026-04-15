@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, RotateCcw, Search, Send, Sparkles } from 'lucide-react';
+import { Bot, FileUp, RotateCcw, Search, Send, Sparkles } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import api from '../../../api/axios';
-import { consultarPaciChatOpenRouter, generarPaciCompletoOpenRouter } from '../../../services/openRouterAiService';
+import { autocompletarPaciDesdeDocumentoOpenRouter, consultarPaciChatOpenRouter, generarPaciCompletoOpenRouter } from '../../../services/openRouterAiService';
 
 const INITIAL_CONTEXT = {
   clave_busqueda: '',
@@ -252,6 +252,20 @@ const extractFormSuggestion = (payload) => {
   }
 
   return payload;
+};
+
+const extractStructuredAutocompleteSuggestion = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+
+  if (payload.resultado_ia && typeof payload.resultado_ia === 'object') {
+    return extractFormSuggestion(payload.resultado_ia);
+  }
+
+  if (payload.data && typeof payload.data === 'object' && payload.data.resultado_ia) {
+    return extractStructuredAutocompleteSuggestion(payload.data);
+  }
+
+  return extractFormSuggestion(payload);
 };
 
 const buildFieldHelpMessage = (helpRequest) => {
@@ -595,6 +609,9 @@ export default function PaciAiAssistantPanel({
   const [oaDraft, setOaDraft] = useState(hydratedState.oaDraft || buildEmptyOaDraft());
   const [oaDrafts, setOaDrafts] = useState(hydratedState.oaDrafts || []);
   const [oaChatPageByContext, setOaChatPageByContext] = useState({});
+  const [structuredFile, setStructuredFile] = useState(null);
+  const [structuredLoading, setStructuredLoading] = useState(false);
+  const [structuredResult, setStructuredResult] = useState(null);
   const lastHelpRequestId = useRef(null);
   const chatViewportRef = useRef(null);
 
@@ -1430,6 +1447,59 @@ export default function PaciAiAssistantPanel({
     }
   };
 
+  const handleStructuredFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setStructuredFile(file);
+    setStructuredResult(null);
+  };
+
+  const handleStructuredAutocomplete = async () => {
+    if (!structuredFile || structuredLoading) return;
+
+    setStructuredLoading(true);
+    try {
+      const contextoJson = JSON.stringify({
+        estudiante_id: context.estudiante_id || formSnapshot?.estudiante_id || '',
+        asignatura_id: context.asignatura_id || formSnapshot?.asignatura_id || '',
+        estudiante_iniciales: context.estudiante_iniciales || formSnapshot?.estudiante_iniciales || '',
+        apoderado: context.apoderado || formSnapshot?.apoderado || '',
+        diagnostico_nee: context.diagnostico_nee || formSnapshot?.diagnostico_nee || '',
+        profesor_jefe: context.profesor_jefe || formSnapshot?.profesor_jefe || '',
+        profesor_asignatura: context.profesor_asignatura || formSnapshot?.profesor_asignatura || '',
+        educador_diferencial: context.educador_diferencial || formSnapshot?.educador_diferencial || '',
+        eje: context.eje || formSnapshot?.eje || '',
+        nivel_trabajo_id: context.nivel_trabajo_id || formSnapshot?.nivel_trabajo_id || '',
+        oa_id: context.oa_id || formSnapshot?.oa_id || '',
+        unidad: context.unidad || formSnapshot?.unidad || '',
+      });
+
+      const res = await autocompletarPaciDesdeDocumentoOpenRouter(structuredFile, contextoJson);
+      const data = res.data?.data || null;
+      const suggestion = extractStructuredAutocompleteSuggestion(data);
+
+      setStructuredResult(data);
+
+      if (suggestion && typeof suggestion === 'object') {
+        onApplySuggestion(suggestion);
+        setChat((prev) => [...prev, {
+          role: 'assistant',
+          text: 'Ya procesé el documento estructurado y apliqué la sugerencia al formulario. Revisa especialmente Trayectoria OA y Perfil DUA.',
+        }]);
+      } else {
+        setChat((prev) => [...prev, {
+          role: 'assistant',
+          text: 'Procesé el documento estructurado, pero no vino un form_data_sugerida utilizable.',
+        }]);
+      }
+    } catch (error) {
+      const message = error?.response?.data?.message || 'No se pudo procesar el documento estructurado.';
+      setStructuredResult({ error: message });
+      setChat((prev) => [...prev, { role: 'assistant', text: message }]);
+    } finally {
+      setStructuredLoading(false);
+    }
+  };
+
   if (!isOpen) {
     return (
       <div className="h-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
@@ -1475,6 +1545,40 @@ export default function PaciAiAssistantPanel({
         </div>
 
         <div className="rounded-xl border border-slate-200 p-3">
+          <div className="mb-3 space-y-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Autocompletar desde documento</p>
+            <p className="text-xs text-slate-500">
+              Sube un DOCX, PDF o TXT estructurado para probar el llenado automático del PACI.
+            </p>
+            <input
+              type="file"
+              accept=".docx,.pdf,.txt,.md,.csv"
+              onChange={handleStructuredFileChange}
+              className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:opacity-95"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={handleStructuredAutocomplete}
+                disabled={!structuredFile || structuredLoading || lookingUp || loading}
+              >
+                <FileUp className="h-4 w-4" />
+                {structuredLoading ? 'Procesando...' : 'Probar autocompletado'}
+              </Button>
+              {structuredFile && (
+                <span className="text-xs text-slate-500">Archivo: {structuredFile.name}</span>
+              )}
+            </div>
+            {structuredResult?.analisis_documento && (
+              <div className="rounded-lg bg-white p-2 text-xs text-slate-600">
+                <p>Pares detectados: {structuredResult.analisis_documento.pares_detectados || 0}</p>
+                {Array.isArray(structuredResult.analisis_documento.advertencias) && structuredResult.analisis_documento.advertencias.length > 0 && (
+                  <p className="mt-1 text-amber-600">{structuredResult.analisis_documento.advertencias.join(' | ')}</p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <input
               value={composer}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Brain, Plus, Pencil, Power, Save } from 'lucide-react';
+import { Brain, FileText, LibraryBig, Pencil, Plus, Power, Save, Upload } from 'lucide-react';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
@@ -10,8 +10,12 @@ import Badge from '../../components/ui/Badge';
 import HelpButton from '../../components/ui/HelpButton';
 import {
   createIaParametroAdmin,
+  createIaKnowledgeBookFromFileAdmin,
+  createIaKnowledgeBookFromTextAdmin,
   getIaConfigAdmin,
+  listIaKnowledgeBooksAdmin,
   saveIaConfigAdmin,
+  toggleIaKnowledgeBookAdmin,
   toggleIaParametroAdmin,
   updateIaParametroAdmin,
 } from '../../services/aiAdminService';
@@ -32,6 +36,11 @@ const EMPTY_PARAM = {
   orden: 0,
 };
 
+const EMPTY_BOOK_FORM = {
+  titulo: '',
+  contenido: '',
+};
+
 export default function IaAdminPage() {
   const [loading, setLoading] = useState(true);
   const [savingConfig, setSavingConfig] = useState(false);
@@ -47,6 +56,14 @@ export default function IaAdminPage() {
   const [paramModal, setParamModal] = useState(false);
   const [editingParam, setEditingParam] = useState(null);
   const [paramForm, setParamForm] = useState(EMPTY_PARAM);
+
+  const [booksLoading, setBooksLoading] = useState(true);
+  const [bookActionLoading, setBookActionLoading] = useState(false);
+  const [books, setBooks] = useState([]);
+  const [bookUploadMode, setBookUploadMode] = useState('archivo');
+  const [bookForm, setBookForm] = useState(EMPTY_BOOK_FORM);
+  const [bookFile, setBookFile] = useState(null);
+  const [showOptionalBookFields, setShowOptionalBookFields] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -80,6 +97,22 @@ export default function IaAdminPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const loadBooks = useCallback(async () => {
+    setBooksLoading(true);
+    try {
+      const res = await listIaKnowledgeBooksAdmin();
+      setBooks(res.data.data || []);
+    } catch {
+      setAlert({ type: 'error', message: 'No se pudo cargar la biblioteca de libros para IA.' });
+    } finally {
+      setBooksLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBooks();
+  }, [loadBooks]);
 
   const validateConfig = () => {
     const nextErrors = {};
@@ -192,6 +225,73 @@ export default function IaAdminPage() {
     }
   };
 
+  const handleUploadBook = async () => {
+    setBookActionLoading(true);
+    try {
+      if (bookUploadMode === 'archivo') {
+        if (!bookFile) {
+          setAlert({ type: 'error', message: 'Debes seleccionar un archivo para subir.' });
+          setBookActionLoading(false);
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', bookFile);
+        formData.append('titulo', bookForm.titulo.trim() || bookFile.name.replace(/\.[^.]+$/, ''));
+        if (bookForm.autor?.trim()) formData.append('autor', bookForm.autor.trim());
+        if (bookForm.fuente?.trim()) formData.append('fuente', bookForm.fuente.trim());
+        if (bookForm.materia?.trim()) formData.append('materia', bookForm.materia.trim());
+        if (bookForm.nivel?.trim()) formData.append('nivel', bookForm.nivel.trim());
+        if (bookForm.tags?.trim()) formData.append('tags', bookForm.tags.trim());
+
+        await createIaKnowledgeBookFromFileAdmin(formData);
+      } else {
+        if (!bookForm.titulo.trim()) {
+          setAlert({ type: 'error', message: 'El título del libro es obligatorio cuando pegas texto.' });
+          setBookActionLoading(false);
+          return;
+        }
+
+        if (!bookForm.contenido.trim()) {
+          setAlert({ type: 'error', message: 'Debes pegar contenido cuando usas carga por texto.' });
+          setBookActionLoading(false);
+          return;
+        }
+
+        await createIaKnowledgeBookFromTextAdmin({
+          titulo: bookForm.titulo.trim(),
+          autor: bookForm.autor?.trim() || null,
+          fuente: bookForm.fuente?.trim() || null,
+          materia: bookForm.materia?.trim() || null,
+          nivel: bookForm.nivel?.trim() || null,
+          tags: bookForm.tags?.trim() || '',
+          contenido: bookForm.contenido,
+        });
+      }
+
+      setAlert({ type: 'success', message: 'Libro cargado e indexado para la IA.' });
+      setBookForm(EMPTY_BOOK_FORM);
+      setBookFile(null);
+      setShowOptionalBookFields(false);
+      await loadBooks();
+    } catch (err) {
+      const message = err.response?.data?.message || 'No se pudo cargar el libro.';
+      setAlert({ type: 'error', message });
+    } finally {
+      setBookActionLoading(false);
+    }
+  };
+
+  const handleToggleBook = async (book) => {
+    try {
+      await toggleIaKnowledgeBookAdmin(book.id);
+      setAlert({ type: 'success', message: 'Vigencia del libro actualizada.' });
+      await loadBooks();
+    } catch {
+      setAlert({ type: 'error', message: 'No se pudo actualizar la vigencia del libro.' });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -260,6 +360,172 @@ export default function IaAdminPage() {
               </Button>
             </div>
           </>
+        )}
+      </Card>
+
+      <Card className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Biblioteca de Libros para IA</h2>
+            <p className="text-xs text-secondary">
+              Sube material curricular para que el motor use evidencia concreta al sugerir estrategias y actividades.
+            </p>
+          </div>
+          <Badge color="primary">Knowledge Base</Badge>
+        </div>
+
+        <div className="flex gap-2">
+          <Button
+            variant={bookUploadMode === 'archivo' ? 'primary' : 'outline'}
+            onClick={() => setBookUploadMode('archivo')}
+          >
+            <Upload className="h-4 w-4" /> Subir Archivo
+          </Button>
+          <Button
+            variant={bookUploadMode === 'texto' ? 'primary' : 'outline'}
+            onClick={() => setBookUploadMode('texto')}
+          >
+            <FileText className="h-4 w-4" /> Pegar Texto
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Input
+            id="kb_titulo"
+            label={bookUploadMode === 'archivo' ? 'Título del libro (opcional)' : 'Título *'}
+            value={bookForm.titulo}
+            onChange={(e) => setBookForm((prev) => ({ ...prev, titulo: e.target.value }))}
+            placeholder={bookUploadMode === 'archivo' ? 'Se usará el nombre del archivo si lo dejas vacío' : 'Bases curriculares Lenguaje 4° básico'}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowOptionalBookFields((prev) => !prev)}
+          className="text-left text-sm font-medium text-primary hover:underline"
+        >
+          {showOptionalBookFields ? 'Ocultar campos opcionales' : 'Mostrar campos opcionales'}
+        </button>
+
+        {showOptionalBookFields && (
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <Input
+              id="kb_autor"
+              label="Autor"
+              value={bookForm.autor || ''}
+              onChange={(e) => setBookForm((prev) => ({ ...prev, autor: e.target.value }))}
+            />
+            <Input
+              id="kb_fuente"
+              label="Fuente"
+              value={bookForm.fuente || ''}
+              onChange={(e) => setBookForm((prev) => ({ ...prev, fuente: e.target.value }))}
+              placeholder="Mineduc"
+            />
+            <Input
+              id="kb_tags"
+              label="Tags (separados por coma)"
+              value={bookForm.tags || ''}
+              onChange={(e) => setBookForm((prev) => ({ ...prev, tags: e.target.value }))}
+              placeholder="lectura, dua, comprensión"
+            />
+            <Input
+              id="kb_materia"
+              label="Materia"
+              value={bookForm.materia || ''}
+              onChange={(e) => setBookForm((prev) => ({ ...prev, materia: e.target.value }))}
+              placeholder="Lenguaje"
+            />
+            <Input
+              id="kb_nivel"
+              label="Nivel"
+              value={bookForm.nivel || ''}
+              onChange={(e) => setBookForm((prev) => ({ ...prev, nivel: e.target.value }))}
+              placeholder="4° Básico"
+            />
+          </div>
+        )}
+
+        {bookUploadMode === 'archivo' ? (
+          <div className="space-y-1.5">
+            <label htmlFor="kb_file" className="block text-sm font-medium text-slate-700">
+              Archivo
+            </label>
+            <input
+              id="kb_file"
+              type="file"
+              accept=".pdf,.docx,.txt,.md,.csv,.json,.html,.htm"
+              className="block w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900"
+              onChange={(e) => setBookFile(e.target.files?.[0] || null)}
+            />
+            <p className="text-xs text-secondary">Soporta PDF, DOCX, TXT, MD, CSV, JSON y HTML.</p>
+          </div>
+        ) : (
+          <TextArea
+            id="kb_texto"
+            label="Contenido del Libro *"
+            value={bookForm.contenido}
+            onChange={(e) => setBookForm((prev) => ({ ...prev, contenido: e.target.value }))}
+            rows={8}
+            placeholder="Pega aquí el contenido a indexar para la IA..."
+          />
+        )}
+
+        <div className="flex justify-end">
+          <Button onClick={handleUploadBook} loading={bookActionLoading}>
+            <Upload className="h-4 w-4" /> Cargar Libro
+          </Button>
+        </div>
+
+        {booksLoading ? (
+          <p className="text-sm text-secondary">Cargando libros indexados...</p>
+        ) : books.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-secondary">
+            Aún no hay libros cargados. Al subir material, la IA podrá fundamentar mejor las sugerencias.
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Título</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Materia</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Nivel</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Chunks</th>
+                  <th className="px-4 py-2 text-left font-semibold text-slate-700">Estado</th>
+                  <th className="px-4 py-2 text-center font-semibold text-slate-700">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {books.map((book) => (
+                  <tr key={book.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-2 font-medium text-slate-900">
+                      <div className="line-clamp-2">{book.titulo}</div>
+                    </td>
+                    <td className="px-4 py-2 text-slate-600">{book.materia || '-'}</td>
+                    <td className="px-4 py-2 text-slate-600">{book.nivel || '-'}</td>
+                    <td className="px-4 py-2 text-slate-600">{book.total_chunks ?? 0}</td>
+                    <td className="px-4 py-2">
+                      <Badge color={book.vigencia ? 'success' : 'secondary'}>
+                        {book.vigencia ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          onClick={() => handleToggleBook(book)}
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-primary/10 hover:text-primary"
+                          title="Activar o desactivar"
+                        >
+                          <Power className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 
@@ -402,10 +668,10 @@ export default function IaAdminPage() {
 
       <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-primary">
         <div className="flex items-start gap-2">
-          <Brain className="mt-0.5 h-4 w-4" />
+          <LibraryBig className="mt-0.5 h-4 w-4" />
           <p>
-            El endpoint de prueba aislado de OpenRouter ya consume esta configuración automáticamente cuando no le envías
-            overrides en el request.
+            El motor de OpenRouter ya consume automáticamente esta configuración y la biblioteca de libros para responder
+            con sugerencias más alineadas a la planeación curricular del establecimiento.
           </p>
         </div>
       </div>

@@ -66,6 +66,7 @@ use App\Controllers\SeguimientoPaciController;
 use App\Controllers\AiController;
 use App\Controllers\OpenRouterAiController;
 use App\Controllers\AiAdminController;
+use App\Controllers\AiKnowledgeController;
 use App\Controllers\MatrizEstrategiaLecturaController;
 use App\Controllers\MatrizEstrategiaEscrituraController;
 use App\Controllers\MatrizEstrategiaComunicacionController;
@@ -393,6 +394,7 @@ $router->post('/api/ai/generar-oa-adaptado', [AiController::class, 'generarOaAda
 // -----------------------------------------------------------
 $router->post('/api/ai-openrouter/generar-paci-completo', [OpenRouterAiController::class, 'generarPaciCompleto'], true);
 $router->post('/api/ai-openrouter/generar-oa-adaptado', [OpenRouterAiController::class, 'generarOaAdaptado'], true);
+$router->post('/api/ai-openrouter/autocompletar-paci-desde-documento', [OpenRouterAiController::class, 'autocompletarPaciDesdeDocumento'], true);
 
 // -----------------------------------------------------------
 // Rutas protegidas: IA Admin (configuración del motor)
@@ -402,6 +404,15 @@ $router->put('/api/admin/ia/config', [AiAdminController::class, 'saveConfig'], t
 $router->post('/api/admin/ia/parametros', [AiAdminController::class, 'storeParametro'], true);
 $router->put('/api/admin/ia/parametros/{id}', [AiAdminController::class, 'updateParametro'], true);
 $router->patch('/api/admin/ia/parametros/{id}', [AiAdminController::class, 'toggleParametro'], true);
+
+// -----------------------------------------------------------
+// Rutas protegidas: IA Knowledge Base (libros curriculares)
+// -----------------------------------------------------------
+$router->get('/api/admin/ia/conocimiento/libros', [AiKnowledgeController::class, 'listBooks'], true);
+$router->post('/api/admin/ia/conocimiento/libros/texto', [AiKnowledgeController::class, 'ingestBookFromText'], true);
+$router->post('/api/admin/ia/conocimiento/libros/archivo', [AiKnowledgeController::class, 'ingestBookFromFile'], true);
+$router->post('/api/admin/ia/conocimiento/buscar', [AiKnowledgeController::class, 'searchChunks'], true);
+$router->patch('/api/admin/ia/conocimiento/libros/{id}', [AiKnowledgeController::class, 'toggleBook'], true);
 
 // -----------------------------------------------------------
 // Rutas protegidas: Chatbot Pedagógico (público = autenticado)
