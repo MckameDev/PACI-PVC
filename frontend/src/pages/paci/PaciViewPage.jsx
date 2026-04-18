@@ -10,6 +10,15 @@ import Alert from '../../components/ui/Alert';
 import Select from '../../components/ui/Select';
 import { generatePaciPdf } from '../../services/pdfService';
 
+const toStartMinutes = (value) => {
+  const match = /^(\d{2}):(\d{2})\s-\s(\d{2}):(\d{2})$/.exec((value || '').trim());
+  if (!match) return Number.POSITIVE_INFINITY;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (hh > 23 || mm > 59) return Number.POSITIVE_INFINITY;
+  return hh * 60 + mm;
+};
+
 export default function PaciViewPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -71,6 +80,14 @@ export default function PaciViewPage() {
   const trayectoria = paci.trayectoria || [];
   const dua = paci.perfil_dua || {};
   const paecVars = paci.paec_variables || [];
+  const horarioApoyo = paci.horario_apoyo || null;
+  const horarioFilas = (horarioApoyo?.filas || [])
+    .slice()
+    .sort((a, b) => {
+      const byHour = toStartMinutes(a?.hora) - toStartMinutes(b?.hora);
+      if (byHour !== 0) return byHour;
+      return (a?.orden || 0) - (b?.orden || 0);
+    });
 
   // Helper: render matrix items or fallback to legacy pipe-delimited string
   const renderMatrixOrPipe = (matrixKey, pipeValue) => {
@@ -191,6 +208,41 @@ export default function PaciViewPage() {
         </Card>
       ) : null}
 
+      {/* Horario de Apoyo */}
+      {paci.formato_generado === 'Completo' ? (
+        <Card className="space-y-4">
+          <h3 className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2">
+            Horario de Apoyo
+          </h3>
+          {!horarioApoyo || !(horarioApoyo.filas || []).length ? (
+            <p className="text-sm text-slate-400">No hay horario de apoyo registrado.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full min-w-[760px] text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {(horarioApoyo.columnas || []).map((col) => (
+                      <th key={col.key} className="px-2 py-2 text-left font-semibold text-slate-700">{col.titulo}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {horarioFilas.map((row) => (
+                    <tr key={row.id || row.orden}>
+                      {(horarioApoyo.columnas || []).map((col) => (
+                        <td key={col.key} className="px-2 py-2 text-slate-600 align-top whitespace-pre-wrap">
+                          {col.key === 'hora' ? (row.hora || '—') : ((row.celdas || {})[col.key] || '—')}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      ) : null}
+
       {/* Trayectoria OA */}
       <Card className="space-y-4">
         <h3 className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2">
@@ -269,6 +321,15 @@ export default function PaciViewPage() {
                       )}
                       {item.adecuacion_oa.estrategias && (
                         <p className="text-slate-600"><strong className="text-slate-700">Estrategias:</strong> {item.adecuacion_oa.estrategias}</p>
+                      )}
+                      {item.adecuacion_oa.indicadores_nivelados && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Indicadores Nivelados:</strong> {item.adecuacion_oa.indicadores_nivelados}</p>
+                      )}
+                      {item.adecuacion_oa.actividades_graduales && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Actividades:</strong> {item.adecuacion_oa.actividades_graduales}</p>
+                      )}
+                      {item.adecuacion_oa.lectura_complementaria && (
+                        <p className="text-slate-600"><strong className="text-slate-700">Lectura Complementaria:</strong> {item.adecuacion_oa.lectura_complementaria}</p>
                       )}
                       {item.adecuacion_oa.criterios_evaluacion && (
                         <p className="text-slate-600"><strong className="text-slate-700">Criterios:</strong> {item.adecuacion_oa.criterios_evaluacion}</p>

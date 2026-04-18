@@ -27,13 +27,14 @@ export default function SearchSelect({
   disabled = false,
   className = '',
   required = false,
+  labelAction = null,
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
-  const selectedOption = options.find((o) => o.value === value);
+  const selectedOption = options.find((o) => String(o.value) === String(value));
 
   // Close on outside click
   useEffect(() => {
@@ -55,7 +56,7 @@ export default function SearchSelect({
   }, [open]);
 
   const filtered = search
-    ? options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()))
+    ? options.filter((o) => String(o.label || '').toLowerCase().includes(search.toLowerCase()))
     : options;
 
   const handleSelect = (val) => {
@@ -80,9 +81,12 @@ export default function SearchSelect({
   return (
     <div className={`space-y-1.5 ${className}`} ref={containerRef}>
       {label && (
-        <label htmlFor={id} className="block text-sm font-medium text-slate-700">
-          {label}
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+            {label}
+          </label>
+          {labelAction && <div className="shrink-0">{labelAction}</div>}
+        </div>
       )}
 
       <div className="relative">
@@ -141,7 +145,7 @@ export default function SearchSelect({
                 <li className="px-3 py-2 text-sm text-slate-400 text-center">Sin resultados</li>
               ) : (
                 filtered.map((opt) => {
-                  const isSelected = opt.value === value;
+                  const isSelected = String(opt.value) === String(value);
                   return (
                     <li
                       key={opt.value}

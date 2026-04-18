@@ -5,7 +5,8 @@
     "require": {
         "php": ">=8.0",
         "firebase/php-jwt": "^6.10",
-        "ramsey/uuid": "^4.7"
+        "ramsey/uuid": "^4.7",
+        "smalot/pdfparser": "2.12"
     },
     "config": {
         "audit": {

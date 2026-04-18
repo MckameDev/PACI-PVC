@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import api from '../../../api/axios';
 import SearchSelect from '../../../components/ui/SearchSelect';
-import Select from '../../../components/ui/Select';
 import Input from '../../../components/ui/Input';
 import Card from '../../../components/ui/Card';
 import Spinner from '../../../components/ui/Spinner';
+import PaciFieldHelpButton from '../components/PaciFieldHelpButton';
 
-export default function StepIdentificacion({ data, onChange }) {
+export default function StepIdentificacion({ data, onChange, onRequestFieldHelp }) {
   const [estudiantes, setEstudiantes] = useState([]);
   const [profesores, setProfesores] = useState([]);
   const [asignaturas, setAsignaturas] = useState([]);
@@ -58,7 +58,12 @@ export default function StepIdentificacion({ data, onChange }) {
 
   if (loading) return <Spinner className="h-40" />;
 
-  const selectedStudent = estudiantes.find((e) => e.id === data.estudiante_id);
+  const selectedStudent = estudiantes.find((e) => String(e.id) === String(data.estudiante_id));
+
+  const requestHelp = (title, description, meaning) => {
+    if (!onRequestFieldHelp) return;
+    onRequestFieldHelp({ title, description, meaning });
+  };
 
   return (
     <div className="space-y-6">
@@ -80,6 +85,16 @@ export default function StepIdentificacion({ data, onChange }) {
             value: est.id,
             label: `${est.nombre_completo} — ${est.rut}`,
           }))}
+          labelAction={
+            <PaciFieldHelpButton
+              title="Estudiante"
+              onClick={() => requestHelp(
+                'Estudiante',
+                'Este campo define a quién se le construye el PACI. La IA puede buscar al estudiante por RUT, nombre o clave parcial y usar sus datos para completar el formulario.',
+                'Es la ficha principal del documento. Si el estudiante es correcto, el resto del PACI puede heredar su curso, diagnóstico y contexto.'
+              )}
+            />
+          }
           required
         />
 
@@ -93,6 +108,16 @@ export default function StepIdentificacion({ data, onChange }) {
             value: a.id,
             label: a.nombre,
           }))}
+          labelAction={
+            <PaciFieldHelpButton
+              title="Asignatura"
+              onClick={() => requestHelp(
+                'Asignatura',
+                'Indica la materia sobre la que se construirá la trayectoria de OA y las adaptaciones. La IA puede reconocer el nombre de la asignatura y traducirlo al ID correcto del catálogo.',
+                'Aquí eliges el ramo o sector de aprendizaje. Sin este dato, la trayectoria no puede buscar los OA y ejes asociados.'
+              )}
+            />
+          }
           required
         />
 
@@ -115,6 +140,16 @@ export default function StepIdentificacion({ data, onChange }) {
             type="date"
             value={data.fecha_emision}
             onChange={(e) => onChange('fecha_emision', e.target.value)}
+            labelAction={
+              <PaciFieldHelpButton
+                title="Fecha de emisión"
+                onClick={() => requestHelp(
+                  'Fecha de emisión',
+                  'Es la fecha formal del documento PACI. Normalmente corresponde al día en que se genera o firma el plan.',
+                  'Sirve para dejar trazabilidad del momento exacto en que el PACI fue emitido.'
+                )}
+              />
+            }
             required
           />
           <SearchSelect
@@ -127,6 +162,16 @@ export default function StepIdentificacion({ data, onChange }) {
               { value: 'Completo', label: 'Completo — Tablas extendidas' },
               { value: 'Modular', label: 'Modular — Con anexos PAEC y DUA' },
             ]}
+            labelAction={
+              <PaciFieldHelpButton
+                title="Formato de salida"
+                onClick={() => requestHelp(
+                  'Formato de salida',
+                  'Define cuánto detalle tendrá el PACI. Un formato compacto prioriza síntesis; uno completo incluye más tablas, apoyos y trazabilidad.',
+                  'Es como decidir si el documento será breve y ejecutivo o más extenso y operativo.'
+                )}
+              />
+            }
             required
           />
         </div>
@@ -140,6 +185,16 @@ export default function StepIdentificacion({ data, onChange }) {
             onChange={handleAnioEscolar}
             error={anioError}
             maxLength={4}
+            labelAction={
+              <PaciFieldHelpButton
+                title="Año escolar"
+                onClick={() => requestHelp(
+                  'Año escolar',
+                  'Es el período académico al que queda asociado el PACI. Sirve para ordenar la vigencia del documento y los reportes.',
+                  'Ayuda a ubicar el plan dentro del año lectivo correcto.'
+                )}
+              />
+            }
           />
           <SearchSelect
             id="profesor_jefe"
@@ -148,6 +203,16 @@ export default function StepIdentificacion({ data, onChange }) {
             value={data.profesor_jefe || ''}
             onChange={(val) => onChange('profesor_jefe', val)}
             options={profesorOptions}
+            labelAction={
+              <PaciFieldHelpButton
+                title="Profesor/a jefe"
+                onClick={() => requestHelp(
+                  'Profesor/a jefe',
+                  'Permite asociar al docente responsable del curso. La IA puede sugerirlo por nombre o correo y dejarlo listo como referencia del plan.',
+                  'Es la persona que acompaña al curso como referente principal.'
+                )}
+              />
+            }
           />
         </div>
 
@@ -159,6 +224,16 @@ export default function StepIdentificacion({ data, onChange }) {
             value={data.profesor_asignatura || ''}
             onChange={(val) => onChange('profesor_asignatura', val)}
             options={profesorOptions}
+            labelAction={
+              <PaciFieldHelpButton
+                title="Profesor/a de asignatura"
+                onClick={() => requestHelp(
+                  'Profesor/a de asignatura',
+                  'Es el docente que dicta la materia del PACI. Su selección permite que el plan quede vinculado al contexto real de la clase.',
+                  'Ayuda a identificar quién enseña la asignatura donde se aplicarán las adaptaciones.'
+                )}
+              />
+            }
           />
           <Input
             id="educador_diferencial"
@@ -166,6 +241,16 @@ export default function StepIdentificacion({ data, onChange }) {
             placeholder="Nombre del educador/a diferencial"
             value={data.educador_diferencial || ''}
             onChange={(e) => onChange('educador_diferencial', e.target.value)}
+            labelAction={
+              <PaciFieldHelpButton
+                title="Educador/a diferencial"
+                onClick={() => requestHelp(
+                  'Educador/a diferencial',
+                  'Es el profesional PIE o especialista que acompaña el diseño y seguimiento de las adecuaciones.',
+                  'Sirve para dejar visible quién apoya pedagógicamente el proceso.'
+                )}
+              />
+            }
           />
         </div>
       </Card>

@@ -24,6 +24,41 @@ const COLORS = {
   light: [241, 245, 249],
 };
 
+function buildTraceId(paci) {
+  const year = String((paci?.fecha_emision || '').slice(0, 4) || new Date().getFullYear());
+  const userTag = String(paci?.usuario_email || paci?.usuario_nombre || 'USR')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(0, 4)
+    .toUpperCase()
+    || 'USR';
+  const correlativo = String(paci?.id || '001').replace(/[^a-zA-Z0-9]/g, '').slice(-3).padStart(3, '0');
+  return `AI-CL-${year}-${userTag}-${correlativo}`;
+}
+
+function applySecurityLayer(doc, paci, pageW, pageH, traceId) {
+  const totalPages = doc.getNumberOfPages();
+  const watermark = [
+    paci?.usuario_email || 'usuario@aulainclusiva.cl',
+    new Date().toLocaleDateString('es-CL'),
+    'AulaInclusiva.cl',
+  ].join(' | ');
+
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.saveGraphicsState();
+    doc.setTextColor(214, 220, 230);
+    doc.setFontSize(26);
+    doc.setFont('helvetica', 'bold');
+    doc.text(watermark, pageW / 2, pageH / 2, { align: 'center', angle: 35 });
+    doc.restoreGraphicsState();
+
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...COLORS.secondary);
+    doc.text(`ID Documento: ${traceId}`, pageW - MARGIN, pageH - 22, { align: 'right' });
+  }
+}
+
 /* ─────────────────────────────────────────────
    HEADER — Encabezado institucional
    ───────────────────────────────────────────── */
@@ -501,9 +536,58 @@ function addMarcoNormativo(doc, y, pageH, contentW) {
 }
 
 /* ─────────────────────────────────────────────
+   XII. HORARIO DE APOYO (Formato Completo)
+   ───────────────────────────────────────────── */
+function addHorarioApoyo(doc, y, horarioApoyo, pageH, contentW) {
+  y = addSection(doc, y, 'XII. HORARIO DE APOYO', pageH, contentW);
+
+  const defaultCols = [
+    { key: 'hora', titulo: 'Hora', orden: 1 },
+    { key: 'lunes', titulo: 'Lunes', orden: 2 },
+    { key: 'martes', titulo: 'Martes', orden: 3 },
+    { key: 'miercoles', titulo: 'Miércoles', orden: 4 },
+    { key: 'jueves', titulo: 'Jueves', orden: 5 },
+    { key: 'viernes', titulo: 'Viernes', orden: 6 },
+  ];
+
+  const columnas = (horarioApoyo?.columnas?.length ? horarioApoyo.columnas : defaultCols)
+    .slice()
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+  const filas = (horarioApoyo?.filas || [])
+    .slice()
+    .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+  const head = [columnas.map((col) => col.titulo)];
+  const body = filas.length > 0
+    ? filas.map((fila) => columnas.map((col) => (col.key === 'hora' ? (fila.hora || '') : ((fila.celdas || {})[col.key] || ''))))
+    : [columnas.map(() => '')];
+
+  autoTable(doc, {
+    startY: y,
+    margin: { left: MARGIN, right: MARGIN },
+    head,
+    body,
+    styles: {
+      fontSize: 6.5,
+      cellPadding: 2.2,
+      textColor: COLORS.text,
+      lineColor: [200, 200, 200],
+      lineWidth: 0.2,
+      minCellHeight: 8,
+      valign: 'middle',
+    },
+    headStyles: { fillColor: COLORS.primary, textColor: [255, 255, 255], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 250, 252] },
+  });
+
+  return doc.lastAutoTable.finalY + 6;
+}
+
+/* ─────────────────────────────────────────────
    FOOTER — Pie de página
    ───────────────────────────────────────────── */
-function addFooter(doc, pageW, pageH) {
+function addFooter(doc, pageW, pageH, traceId = '') {
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
@@ -521,13 +605,16 @@ function addFooter(doc, pageW, pageH) {
       `P\u00e1gina ${i} de ${totalPages} \u2014 Generado por PACI PVC \u2014 ${new Date().toLocaleDateString('es-CL')}`,
       pageW / 2, pageH - 8, { align: 'center' }
     );
+    if (traceId) {
+      doc.text(`Trazabilidad: ${traceId}`, MARGIN, pageH - 8, { align: 'left' });
+    }
   }
 }
 
 /* ═════════════════════════════════════════════
    Formato A: Compacto (I–V)
    ═════════════════════════════════════════════ */
-function generateCompacto(doc, paci, pageW, pageH, contentW) {
+function generateCompacto(doc, paci, pageW, pageH, contentW, traceId) {
   let y = addHeader(doc, paci, pageW, contentW);
   y = addIdentificacion(doc, y, paci, pageH, contentW);
   y = addTrayectoria(doc, y, paci.trayectoria, pageH, contentW);
@@ -539,13 +626,13 @@ function generateCompacto(doc, paci, pageW, pageH, contentW) {
   }
   y = addSection(doc, y, 'V. FIRMAS', pageH, contentW);
   y = addFirmas(doc, y, pageH, contentW);
-  addFooter(doc, pageW, pageH);
+  addFooter(doc, pageW, pageH, traceId);
 }
 
 /* ═════════════════════════════════════════════
    Formato B: Completo (I–VIII)
    ═════════════════════════════════════════════ */
-function generateCompleto(doc, paci, pageW, pageH, contentW) {
+function generateCompleto(doc, paci, pageW, pageH, contentW, traceId) {
   let y = addHeader(doc, paci, pageW, contentW);
   y = addIdentificacion(doc, y, paci, pageH, contentW);
   y = addTrayectoria(doc, y, paci.trayectoria, pageH, contentW);
@@ -560,13 +647,14 @@ function generateCompleto(doc, paci, pageW, pageH, contentW) {
   y = addTrabajoColaborativo(doc, y, pageH, contentW);
   y = addSeguimientoExtendido(doc, y, paci.trayectoria, pageH, contentW);
   y = addMarcoNormativo(doc, y, pageH, contentW);
-  addFooter(doc, pageW, pageH);
+  y = addHorarioApoyo(doc, y, paci.horario_apoyo, pageH, contentW);
+  addFooter(doc, pageW, pageH, traceId);
 }
 
 /* ═════════════════════════════════════════════
    Formato C: Modular (I–VIII + Anexos)
    ═════════════════════════════════════════════ */
-function generateModular(doc, paci, pageW, pageH, contentW) {
+function generateModular(doc, paci, pageW, pageH, contentW, traceId) {
   let y = addHeader(doc, paci, pageW, contentW);
   y = addIdentificacion(doc, y, paci, pageH, contentW);
   y = addTrayectoria(doc, y, paci.trayectoria, pageH, contentW);
@@ -633,7 +721,7 @@ function generateModular(doc, paci, pageW, pageH, contentW) {
     },
   });
 
-  addFooter(doc, pageW, pageH);
+  addFooter(doc, pageW, pageH, traceId);
 }
 
 /* ═════════════════════════════════════════════
@@ -644,25 +732,41 @@ export function generatePaciPdf(paci, pageSize = 'carta') {
   const pageW = size.width;
   const pageH = size.height;
   const contentW = pageW - MARGIN * 2;
+  const traceId = buildTraceId(paci);
 
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: [pageW, pageH],
-  });
+  let doc;
+  try {
+    doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [pageW, pageH],
+      encryption: {
+        ownerPassword: traceId,
+        userPermissions: ['print'],
+      },
+    });
+  } catch {
+    doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [pageW, pageH],
+    });
+  }
 
   doc.setFont('helvetica');
 
   switch (paci.formato_generado) {
     case 'Completo':
-      generateCompleto(doc, paci, pageW, pageH, contentW);
+      generateCompleto(doc, paci, pageW, pageH, contentW, traceId);
       break;
     case 'Modular':
-      generateModular(doc, paci, pageW, pageH, contentW);
+      generateModular(doc, paci, pageW, pageH, contentW, traceId);
       break;
     default:
-      generateCompacto(doc, paci, pageW, pageH, contentW);
+      generateCompacto(doc, paci, pageW, pageH, contentW, traceId);
   }
+
+  applySecurityLayer(doc, paci, pageW, pageH, traceId);
 
   const filename = `PACI_${(paci.estudiante_nombre || 'documento').replace(/\s+/g, '_')}_${paci.fecha_emision || 'sin_fecha'}.pdf`;
   doc.save(filename);

@@ -91,7 +91,7 @@ class PaciService
                        cn.nombre as estudiante_curso, cn.valor_numerico as estudiante_curso_valor,
                        est.nombre as establecimiento_nombre, est.region as establecimiento_region,
                        est.comuna as establecimiento_comuna,
-                       u.nombre as usuario_nombre, u.rol as usuario_rol,
+                      u.nombre as usuario_nombre, u.rol as usuario_rol, u.email as usuario_email,
                        a.nombre as asignatura_nombre, a.codigo as asignatura_codigo
                 FROM paci p
                 LEFT JOIN estudiantes e ON e.id = p.estudiante_id
@@ -165,6 +165,9 @@ class PaciService
         $stmtPaec = $this->db->prepare($sqlPaec);
         $stmtPaec->execute([':paci_id' => $id]);
         $paci['paec_variables'] = $stmtPaec->fetchAll();
+
+        // Carga la grilla de horario de apoyo para el formato completo
+        $paci['horario_apoyo'] = $this->getHorarioApoyo($id);
 
         return $paci;
     }
@@ -254,9 +257,19 @@ class PaciService
                     $trayId = $trayectoriaIds[$index] ?? null;
                     if (!$trayId) continue;
 
+                    $indicadoresSeleccionados = !empty($item['indicadores_seleccionados']) && is_array($item['indicadores_seleccionados'])
+                        ? $item['indicadores_seleccionados']
+                        : [];
+
+                    $this->validateIndicadoresPorNivel(
+                        (string) ($item['oa_id'] ?? ''),
+                        $indicadoresSeleccionados,
+                        $index
+                    );
+
                     // Indicadores seleccionados
-                    if (!empty($item['indicadores_seleccionados']) && is_array($item['indicadores_seleccionados'])) {
-                        $this->insertAdecuacionIndicadores($trayId, $item['indicadores_seleccionados'], $userId);
+                    if (!empty($indicadoresSeleccionados)) {
+                        $this->insertAdecuacionIndicadores($trayId, $indicadoresSeleccionados, $userId);
                     }
 
                     // Adecuación OA (meta integradora)
@@ -276,6 +289,11 @@ class PaciService
             // PAEC variables
             if (!empty($data['paec_variables']) && is_array($data['paec_variables'])) {
                 $this->insertPaecVariables($paciId, $data['paec_variables'], $userId);
+            }
+
+            // Inserta la grilla de horario de apoyo del formato completo
+            if (!empty($data['horario_apoyo']) && is_array($data['horario_apoyo'])) {
+                $this->insertHorarioApoyo($paciId, $data['horario_apoyo'], $userId);
             }
 
             if (!empty($data['expediente_ids'])) {
@@ -440,6 +458,69 @@ class PaciService
         }
     }
 
+    // Valida que, si el OA tiene indicadores, se seleccionen al menos dos por nivel (L, ED, NL)
+    private function validateIndicadoresPorNivel(string $oaId, array $indicadorIds, int $index): void
+    {
+        if (!UUID::isValid($oaId)) {
+            return;
+        }
+
+        $stmtAvailable = $this->db->prepare(
+            "SELECT nivel_desempeno, COUNT(*) AS total
+             FROM indicadores
+             WHERE oa_id = :oa_id AND vigencia = 1
+             GROUP BY nivel_desempeno"
+        );
+        $stmtAvailable->execute([':oa_id' => $oaId]);
+        $availableRows = $stmtAvailable->fetchAll(PDO::FETCH_ASSOC);
+
+        // Si el OA no tiene indicadores configurados, no se bloquea el guardado.
+        if (empty($availableRows)) {
+            return;
+        }
+
+        $validIds = array_values(array_filter($indicadorIds, static fn($id) => UUID::isValid((string) $id)));
+        if (empty($validIds)) {
+            throw new \RuntimeException(
+                "Trayectoria [" . ($index + 1) . "]: debes seleccionar indicadores de evaluación (mínimo dos por nivel L, ED y NL)."
+            );
+        }
+
+        $placeholders = [];
+        $params = [':oa_id' => $oaId];
+        foreach ($validIds as $i => $id) {
+            $ph = ':id_' . $i;
+            $placeholders[] = $ph;
+            $params[$ph] = $id;
+        }
+
+        $sqlSelected = "SELECT nivel_desempeno, COUNT(*) AS total
+                        FROM indicadores
+                        WHERE oa_id = :oa_id
+                          AND vigencia = 1
+                          AND id IN (" . implode(', ', $placeholders) . ")
+                        GROUP BY nivel_desempeno";
+
+        $stmtSelected = $this->db->prepare($sqlSelected);
+        $stmtSelected->execute($params);
+        $selectedRows = $stmtSelected->fetchAll(PDO::FETCH_ASSOC);
+
+        $selectedByLevel = ['L' => 0, 'ED' => 0, 'NL' => 0];
+        foreach ($selectedRows as $row) {
+            $level = (string) ($row['nivel_desempeno'] ?? '');
+            if (array_key_exists($level, $selectedByLevel)) {
+                $selectedByLevel[$level] = (int) ($row['total'] ?? 0);
+            }
+        }
+
+        $missing = array_keys(array_filter($selectedByLevel, static fn($count) => $count < 2));
+        if (!empty($missing)) {
+            throw new \RuntimeException(
+                "Trayectoria [" . ($index + 1) . "]: faltan indicadores por nivel (" . implode(', ', $missing) . "). Debes elegir al menos dos en L, ED y NL."
+            );
+        }
+    }
+
     // Inserta indicadores seleccionados para una trayectoria
     private function insertAdecuacionIndicadores(string $trayectoriaId, array $indicadorIds, ?string $userId): void
     {
@@ -463,9 +544,11 @@ class PaciService
     private function insertAdecuacionOa(string $paciId, string $trayectoriaId, array $adec, ?string $userId): void
     {
         $sql = "INSERT INTO adecuaciones_oa (id, paci_id, trayectoria_id, meta_integradora, estrategias,
-                adecuaciones, instrumento_evaluacion, justificacion, criterios_evaluacion, observaciones,
+                indicadores_nivelados, adecuaciones, actividades_graduales, lectura_complementaria,
+                instrumento_evaluacion, justificacion, criterios_evaluacion, observaciones,
                 vigencia, created_by, updated_by)
-                VALUES (:id, :paci_id, :tray_id, :meta, :estrategias, :adec, :instrumento, :justificacion,
+                VALUES (:id, :paci_id, :tray_id, :meta, :estrategias, :indicadores_nivelados, :adec,
+                :actividades_graduales, :lectura_complementaria, :instrumento, :justificacion,
                 :criterios, :observaciones, 1, :created_by, :updated_by)";
         $stmt = $this->db->prepare($sql);
         $stmt->execute([
@@ -474,7 +557,10 @@ class PaciService
             ':tray_id'       => $trayectoriaId,
             ':meta'          => $adec['meta_integradora'] ?? null,
             ':estrategias'   => $adec['estrategias'] ?? null,
+            ':indicadores_nivelados' => $adec['indicadores_nivelados'] ?? null,
             ':adec'          => $adec['adecuaciones'] ?? null,
+            ':actividades_graduales' => $adec['actividades_graduales'] ?? null,
+            ':lectura_complementaria' => $adec['lectura_complementaria'] ?? null,
             ':instrumento'   => $adec['instrumento_evaluacion'] ?? null,
             ':justificacion' => $adec['justificacion'] ?? null,
             ':criterios'     => $adec['criterios_evaluacion'] ?? null,
@@ -536,5 +622,238 @@ class PaciService
                 ]);
             }
         }
+    }
+
+    // Inserta la estructura de horario de apoyo (columnas, filas y celdas)
+    private function insertHorarioApoyo(string $paciId, array $horario, ?string $userId): void
+    {
+        $columnas = $horario['columnas'] ?? [];
+        $filas    = $horario['filas'] ?? [];
+
+        if (!is_array($columnas) || !is_array($filas)) {
+            return;
+        }
+
+        if (empty($columnas) && empty($filas)) {
+            return;
+        }
+
+        $horarioId = UUID::generate();
+        $stmtHorario = $this->db->prepare(
+            "INSERT INTO paci_horario_apoyo (id, paci_id, vigencia, created_by, updated_by)
+             VALUES (:id, :paci_id, 1, :created_by, :updated_by)"
+        );
+        $stmtHorario->execute([
+            ':id'         => $horarioId,
+            ':paci_id'    => $paciId,
+            ':created_by' => $userId,
+            ':updated_by' => $userId,
+        ]);
+
+        $defaultColumns = [
+            ['key' => 'hora',      'titulo' => 'Hora',      'es_fija' => 1],
+            ['key' => 'lunes',     'titulo' => 'Lunes',     'es_fija' => 1],
+            ['key' => 'martes',    'titulo' => 'Martes',    'es_fija' => 1],
+            ['key' => 'miercoles', 'titulo' => 'Miércoles', 'es_fija' => 1],
+            ['key' => 'jueves',    'titulo' => 'Jueves',    'es_fija' => 1],
+            ['key' => 'viernes',   'titulo' => 'Viernes',   'es_fija' => 1],
+        ];
+
+        $normalizedColumns = [];
+        if (empty($columnas)) {
+            $normalizedColumns = $defaultColumns;
+        } else {
+            foreach ($columnas as $idx => $col) {
+                if (!is_array($col)) continue;
+                $key = trim((string) ($col['key'] ?? ''));
+                if ($key === '') continue;
+                if (isset($normalizedColumns[$key])) continue;
+
+                $normalizedColumns[$key] = [
+                    'key'     => $key,
+                    'titulo'  => (string) ($col['titulo'] ?? ucfirst($key)),
+                    'orden'   => (int) ($col['orden'] ?? ($idx + 1)),
+                    'es_fija' => !empty($col['es_fija']) ? 1 : 0,
+                ];
+            }
+
+            if (!isset($normalizedColumns['hora'])) {
+                $normalizedColumns['hora'] = [
+                    'key'     => 'hora',
+                    'titulo'  => 'Hora',
+                    'orden'   => 1,
+                    'es_fija' => 1,
+                ];
+            }
+
+            $normalizedColumns = array_values($normalizedColumns);
+            usort($normalizedColumns, static fn(array $a, array $b): int => $a['orden'] <=> $b['orden']);
+        }
+
+        $stmtCol = $this->db->prepare(
+            "INSERT INTO paci_horario_apoyo_columnas
+             (id, horario_id, col_key, titulo, orden, es_fija, vigencia, created_by, updated_by)
+             VALUES (:id, :horario_id, :col_key, :titulo, :orden, :es_fija, 1, :created_by, :updated_by)"
+        );
+
+        $columnIdByKey = [];
+        foreach ($normalizedColumns as $idx => $col) {
+            $colId = UUID::generate();
+            $stmtCol->execute([
+                ':id'         => $colId,
+                ':horario_id' => $horarioId,
+                ':col_key'    => $col['key'],
+                ':titulo'     => $col['titulo'],
+                ':orden'      => (int) ($col['orden'] ?? ($idx + 1)),
+                ':es_fija'    => !empty($col['es_fija']) ? 1 : 0,
+                ':created_by' => $userId,
+                ':updated_by' => $userId,
+            ]);
+
+            $columnIdByKey[$col['key']] = $colId;
+        }
+
+        $stmtFila = $this->db->prepare(
+            "INSERT INTO paci_horario_apoyo_filas (id, horario_id, orden, hora, vigencia, created_by, updated_by)
+             VALUES (:id, :horario_id, :orden, :hora, 1, :created_by, :updated_by)"
+        );
+
+        $stmtCelda = $this->db->prepare(
+            "INSERT INTO paci_horario_apoyo_celdas (id, fila_id, columna_id, contenido, vigencia, created_by, updated_by)
+             VALUES (:id, :fila_id, :columna_id, :contenido, 1, :created_by, :updated_by)"
+        );
+
+        foreach ($filas as $idx => $fila) {
+            if (!is_array($fila)) continue;
+
+            $filaId = UUID::generate();
+            $stmtFila->execute([
+                ':id'         => $filaId,
+                ':horario_id' => $horarioId,
+                ':orden'      => (int) ($fila['orden'] ?? ($idx + 1)),
+                ':hora'       => $fila['hora'] ?? null,
+                ':created_by' => $userId,
+                ':updated_by' => $userId,
+            ]);
+
+            $celdas = is_array($fila['celdas'] ?? null) ? $fila['celdas'] : [];
+            foreach ($columnIdByKey as $colKey => $colId) {
+                if ($colKey === 'hora') continue;
+
+                $contenido = $celdas[$colKey] ?? null;
+                if ($contenido === null || $contenido === '') {
+                    continue;
+                }
+
+                $stmtCelda->execute([
+                    ':id'         => UUID::generate(),
+                    ':fila_id'    => $filaId,
+                    ':columna_id' => $colId,
+                    ':contenido'  => (string) $contenido,
+                    ':created_by' => $userId,
+                    ':updated_by' => $userId,
+                ]);
+            }
+        }
+    }
+
+    // Obtiene la estructura de horario de apoyo asociada a un PACI
+    private function getHorarioApoyo(string $paciId): ?array
+    {
+        $stmtHorario = $this->db->prepare(
+            "SELECT * FROM paci_horario_apoyo WHERE paci_id = :paci_id AND vigencia = 1 LIMIT 1"
+        );
+        $stmtHorario->execute([':paci_id' => $paciId]);
+        $horario = $stmtHorario->fetch();
+
+        if (!$horario) {
+            return null;
+        }
+
+        $stmtCols = $this->db->prepare(
+            "SELECT id, col_key, titulo, orden, es_fija
+             FROM paci_horario_apoyo_columnas
+             WHERE horario_id = :horario_id AND vigencia = 1
+             ORDER BY orden ASC"
+        );
+        $stmtCols->execute([':horario_id' => $horario['id']]);
+        $cols = $stmtCols->fetchAll();
+
+        if (empty($cols)) {
+            return [
+                'id'       => $horario['id'],
+                'columnas' => [],
+                'filas'    => [],
+            ];
+        }
+
+        $columnas = array_map(static fn(array $col): array => [
+            'key'     => $col['col_key'],
+            'titulo'  => $col['titulo'],
+            'orden'   => (int) $col['orden'],
+            'es_fija' => (int) $col['es_fija'],
+        ], $cols);
+
+        $colIds = array_column($cols, 'id');
+        $colKeyById = [];
+        foreach ($cols as $col) {
+            $colKeyById[$col['id']] = $col['col_key'];
+        }
+
+        $stmtFilas = $this->db->prepare(
+            "SELECT id, orden, hora
+             FROM paci_horario_apoyo_filas
+             WHERE horario_id = :horario_id AND vigencia = 1
+             ORDER BY orden ASC"
+        );
+        $stmtFilas->execute([':horario_id' => $horario['id']]);
+        $filasDb = $stmtFilas->fetchAll();
+
+        $filas = [];
+        if (!empty($filasDb)) {
+            $filaIds = array_column($filasDb, 'id');
+
+            $inFila = implode(',', array_fill(0, count($filaIds), '?'));
+            $inCol  = implode(',', array_fill(0, count($colIds), '?'));
+
+            $stmtCeldas = $this->db->prepare(
+                "SELECT fila_id, columna_id, contenido
+                 FROM paci_horario_apoyo_celdas
+                 WHERE vigencia = 1 AND fila_id IN ({$inFila}) AND columna_id IN ({$inCol})"
+            );
+            $stmtCeldas->execute(array_merge($filaIds, $colIds));
+            $celdasDb = $stmtCeldas->fetchAll();
+
+            $celdaMap = [];
+            foreach ($celdasDb as $celda) {
+                $key = $colKeyById[$celda['columna_id']] ?? null;
+                if ($key === null) continue;
+                if (!isset($celdaMap[$celda['fila_id']])) {
+                    $celdaMap[$celda['fila_id']] = [];
+                }
+                $celdaMap[$celda['fila_id']][$key] = $celda['contenido'];
+            }
+
+            foreach ($filasDb as $fila) {
+                $celdas = [];
+                foreach ($columnas as $col) {
+                    if ($col['key'] === 'hora') continue;
+                    $celdas[$col['key']] = $celdaMap[$fila['id']][$col['key']] ?? '';
+                }
+
+                $filas[] = [
+                    'id'     => $fila['id'],
+                    'orden'  => (int) $fila['orden'],
+                    'hora'   => $fila['hora'] ?? '',
+                    'celdas' => $celdas,
+                ];
+            }
+        }
+
+        return [
+            'id'       => $horario['id'],
+            'columnas' => $columnas,
+            'filas'    => $filas,
+        ];
     }
 }

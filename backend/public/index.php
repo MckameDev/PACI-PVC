@@ -2,7 +2,36 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../vendor/autoload.php';
+$autoloadCandidates = [
+    __DIR__ . '/../vendor/autoload.php',
+    __DIR__ . '/../vendor_alt/autoload.php',
+    __DIR__ . '/../vendor_new/autoload.php',
+    __DIR__ . '/../../vendor/autoload.php',
+    __DIR__ . '/../../vendor_alt/autoload.php',
+    __DIR__ . '/../../vendor_new/autoload.php',
+    __DIR__ . '/../../backend/vendor/autoload.php',
+    __DIR__ . '/../../backend/vendor_alt/autoload.php',
+    __DIR__ . '/../../backend/vendor_new/autoload.php',
+];
+
+$autoloadLoaded = false;
+foreach ($autoloadCandidates as $autoloadPath) {
+    if (is_file($autoloadPath)) {
+        require_once $autoloadPath;
+        $autoloadLoaded = true;
+        break;
+    }
+}
+
+if (!$autoloadLoaded) {
+    http_response_code(500);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'No se encontro vendor/autoload.php. Verifica la carpeta vendor en el servidor.'
+    ]);
+    exit;
+}
 
 use App\Config\Cors;
 use App\Config\AppConfig;
@@ -35,6 +64,9 @@ use App\Controllers\SaludEstudianteController;
 use App\Controllers\AntecedenteEscolarController;
 use App\Controllers\SeguimientoPaciController;
 use App\Controllers\AiController;
+use App\Controllers\OpenRouterAiController;
+use App\Controllers\AiAdminController;
+use App\Controllers\AiKnowledgeController;
 use App\Controllers\MatrizEstrategiaLecturaController;
 use App\Controllers\MatrizEstrategiaEscrituraController;
 use App\Controllers\MatrizEstrategiaComunicacionController;
@@ -358,6 +390,31 @@ $router->patch('/api/seguimiento-paci/{id}', [SeguimientoPaciController::class, 
 $router->post('/api/ai/generar-oa-adaptado', [AiController::class, 'generarOaAdaptado'], true);
 
 // -----------------------------------------------------------
+// Rutas protegidas: IA OpenRouter (prueba aislada)
+// -----------------------------------------------------------
+$router->post('/api/ai-openrouter/generar-paci-completo', [OpenRouterAiController::class, 'generarPaciCompleto'], true);
+$router->post('/api/ai-openrouter/generar-oa-adaptado', [OpenRouterAiController::class, 'generarOaAdaptado'], true);
+$router->post('/api/ai-openrouter/autocompletar-paci-desde-documento', [OpenRouterAiController::class, 'autocompletarPaciDesdeDocumento'], true);
+
+// -----------------------------------------------------------
+// Rutas protegidas: IA Admin (configuración del motor)
+// -----------------------------------------------------------
+$router->get('/api/admin/ia/config', [AiAdminController::class, 'getConfig'], true);
+$router->put('/api/admin/ia/config', [AiAdminController::class, 'saveConfig'], true);
+$router->post('/api/admin/ia/parametros', [AiAdminController::class, 'storeParametro'], true);
+$router->put('/api/admin/ia/parametros/{id}', [AiAdminController::class, 'updateParametro'], true);
+$router->patch('/api/admin/ia/parametros/{id}', [AiAdminController::class, 'toggleParametro'], true);
+
+// -----------------------------------------------------------
+// Rutas protegidas: IA Knowledge Base (libros curriculares)
+// -----------------------------------------------------------
+$router->get('/api/admin/ia/conocimiento/libros', [AiKnowledgeController::class, 'listBooks'], true);
+$router->post('/api/admin/ia/conocimiento/libros/texto', [AiKnowledgeController::class, 'ingestBookFromText'], true);
+$router->post('/api/admin/ia/conocimiento/libros/archivo', [AiKnowledgeController::class, 'ingestBookFromFile'], true);
+$router->post('/api/admin/ia/conocimiento/buscar', [AiKnowledgeController::class, 'searchChunks'], true);
+$router->patch('/api/admin/ia/conocimiento/libros/{id}', [AiKnowledgeController::class, 'toggleBook'], true);
+
+// -----------------------------------------------------------
 // Rutas protegidas: Chatbot Pedagógico (público = autenticado)
 // -----------------------------------------------------------
 $router->get('/api/chatbot/temas', [ChatbotController::class, 'temasPublic'], true);
@@ -467,7 +524,50 @@ class HealthCheck
         try {
             $db = \App\Config\Database::getInstance();
             $db->query('SELECT 1');
-            Response::success(['status' => 'ok', 'database' => 'connected', 'timestamp' => date('c')]);
+
+            $serviceCandidates = [
+                dirname(__DIR__) . '/src/Services/PaciService.php',
+                dirname(__DIR__) . '/backend/src/Services/PaciService.php',
+                dirname(__DIR__, 2) . '/backend/src/Services/PaciService.php',
+            ];
+
+            $servicePath = null;
+            foreach ($serviceCandidates as $candidate) {
+                if (is_file($candidate)) {
+                    $servicePath = $candidate;
+                    break;
+                }
+            }
+
+            $diag = [
+                'service_path' => $servicePath,
+                'service_exists' => $servicePath !== null,
+                'service_mtime' => $servicePath ? date('c', (int) filemtime($servicePath)) : null,
+                'service_md5' => $servicePath ? md5_file($servicePath) : null,
+                'horario_tables' => [
+                    'paci_horario_apoyo' => null,
+                    'paci_horario_apoyo_columnas' => null,
+                    'paci_horario_apoyo_filas' => null,
+                    'paci_horario_apoyo_celdas' => null,
+                ],
+            ];
+
+            foreach (array_keys($diag['horario_tables']) as $table) {
+                try {
+                    $stmt = $db->query("SELECT COUNT(*) AS total FROM {$table} WHERE vigencia = 1");
+                    $row = $stmt->fetch();
+                    $diag['horario_tables'][$table] = isset($row['total']) ? (int) $row['total'] : 0;
+                } catch (\Throwable $e) {
+                    $diag['horario_tables'][$table] = 'missing';
+                }
+            }
+
+            Response::success([
+                'status' => 'ok',
+                'database' => 'connected',
+                'timestamp' => date('c'),
+                'diag' => $diag,
+            ]);
         } catch (\Exception $e) {
             Response::error('Base de datos no disponible', 503);
         }

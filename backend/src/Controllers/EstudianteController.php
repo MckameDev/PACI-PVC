@@ -23,7 +23,7 @@ class EstudianteController
         $page    = (int) ($_GET['page'] ?? 1);
         $limit   = (int) ($_GET['limit'] ?? 20);
         $filters = array_intersect_key($_GET, array_flip([
-            'establecimiento_id', 'curso_nivel_id', 'tipo_nee'
+            'establecimiento_id', 'curso_nivel_id', 'tipo_nee', 'rut', 'nombre_completo', 'q'
         ]));
 
         // Non-Admin users only see students from their establecimiento

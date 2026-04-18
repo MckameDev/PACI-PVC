@@ -8,6 +8,7 @@ export default function Input({
   error,
   icon: Icon,
   className = '',
+  labelAction = null,
   ...props
 }) {
   const [showPassword, setShowPassword] = useState(false);
@@ -17,9 +18,12 @@ export default function Input({
   return (
     <div className={`space-y-1.5 ${className}`}>
       {label && (
-        <label htmlFor={id} className="block text-sm font-medium text-slate-700">
-          {label}
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor={id} className="block text-sm font-medium text-slate-700">
+            {label}
+          </label>
+          {labelAction && <div className="shrink-0">{labelAction}</div>}
+        </div>
       )}
       <div className="relative">
         {Icon && (

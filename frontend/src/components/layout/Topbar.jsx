@@ -14,6 +14,7 @@ const pageTitles = {
   '/establecimientos': 'Establecimientos',
   '/usuarios': 'Gestión de Usuarios',
   '/objetivos-aprendizaje': 'Objetivos de Aprendizaje',
+  '/ia-admin': 'IA Admin',
 };
 
 function resolveTitle(pathname) {

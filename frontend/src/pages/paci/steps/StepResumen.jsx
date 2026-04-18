@@ -1,9 +1,27 @@
 import Card from '../../../components/ui/Card';
 import Badge from '../../../components/ui/Badge';
 
+const toStartMinutes = (value) => {
+  const match = /^(\d{2}):(\d{2})\s-\s(\d{2}):(\d{2})$/.exec((value || '').trim());
+  if (!match) return Number.POSITIVE_INFINITY;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  if (hh > 23 || mm > 59) return Number.POSITIVE_INFINITY;
+  return hh * 60 + mm;
+};
+
 export default function StepResumen({ data, estudiante }) {
   const dua = data.perfil_dua || {};
   const trayectoria = data.trayectoria || [];
+  const horario = data.horario_apoyo || { columnas: [], filas: [] };
+  const horarioColumnas = (horario.columnas || []).slice().sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  const horarioFilas = (horario.filas || [])
+    .slice()
+    .sort((a, b) => {
+      const byHour = toStartMinutes(a?.hora) - toStartMinutes(b?.hora);
+      if (byHour !== 0) return byHour;
+      return (a?.orden || 0) - (b?.orden || 0);
+    });
 
   const renderList = (pipeString) => {
     if (!pipeString) return <span className="text-slate-400">No seleccionado</span>;
@@ -97,6 +115,41 @@ export default function StepResumen({ data, estudiante }) {
         </Card>
       ) : null}
 
+      {/* Horario de Apoyo */}
+      {data.formato_generado === 'Completo' ? (
+        <Card className="space-y-4">
+          <h3 className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2">
+            Horario de Apoyo
+          </h3>
+          {horarioColumnas.length === 0 || horarioFilas.length === 0 ? (
+            <p className="text-sm text-slate-400">No se registraron bloques en el horario de apoyo.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="w-full min-w-[760px] text-xs">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    {horarioColumnas.map((col) => (
+                      <th key={col.key} className="px-2 py-2 text-left font-semibold text-slate-700">{col.titulo}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {horarioFilas.map((row) => (
+                    <tr key={row.id || row.orden}>
+                      {horarioColumnas.map((col) => (
+                        <td key={col.key} className="px-2 py-2 text-slate-600 align-top whitespace-pre-wrap">
+                          {col.key === 'hora' ? (row.hora || '—') : ((row.celdas || {})[col.key] || '—')}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      ) : null}
+
       {/* Trayectoria OA */}
       <Card className="space-y-4">
         <h3 className="text-base font-semibold text-slate-900 border-b border-slate-200 pb-2">
@@ -154,8 +207,17 @@ export default function StepResumen({ data, estudiante }) {
                 {item.adecuacion_oa?.estrategias && (
                   <div className="text-sm"><strong className="text-slate-700">Estrategias Adecuación:</strong> <span className="text-slate-600">{item.adecuacion_oa.estrategias}</span></div>
                 )}
+                {item.adecuacion_oa?.indicadores_nivelados && (
+                  <div className="text-sm"><strong className="text-slate-700">Indicadores Nivelados:</strong> <span className="text-slate-600">{item.adecuacion_oa.indicadores_nivelados}</span></div>
+                )}
                 {item.adecuacion_oa?.adecuaciones && (
                   <div className="text-sm"><strong className="text-slate-700">Adecuaciones:</strong> <span className="text-slate-600">{item.adecuacion_oa.adecuaciones}</span></div>
+                )}
+                {item.adecuacion_oa?.actividades_graduales && (
+                  <div className="text-sm"><strong className="text-slate-700">Actividades Graduales:</strong> <span className="text-slate-600">{item.adecuacion_oa.actividades_graduales}</span></div>
+                )}
+                {item.adecuacion_oa?.lectura_complementaria && (
+                  <div className="text-sm"><strong className="text-slate-700">Lectura Complementaria:</strong> <span className="text-slate-600">{item.adecuacion_oa.lectura_complementaria}</span></div>
                 )}
               </div>
             ))}
