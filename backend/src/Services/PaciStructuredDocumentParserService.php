@@ -216,18 +216,31 @@ class PaciStructuredDocumentParserService
             'estudiante' => ['estudiante', 'alumno', 'nombre del estudiante'],
             'apoderado' => ['apoderado', 'tutor', 'responsable'],
             'diagnostico' => ['diagnostico', 'nee', 'neep', 'neet'],
+            'tipo_nee' => ['tipo nee', 'tipo de nee', 'nee'],
+            'comorbilidad' => ['comorbilidad'],
+            'curso' => ['curso', 'curso nivel', 'nivel curso'],
+            'profesor_jefe' => ['profesor jefe', 'docente jefe', 'profesor/a jefe'],
+            'profesor_asignatura' => ['profesor asignatura', 'docente asignatura', 'profesor/a de asignatura'],
+            'educador_diferencial' => ['educador diferencial', 'docente diferencial'],
             'perfil_dua' => ['perfil dua', 'perfil del estudiante', 'perfil'],
             'barreras' => ['barreras', 'barreras para el aprendizaje'],
             'fortalezas' => ['fortalezas', 'potencialidades'],
             'asignatura' => ['asignatura', 'materia'],
             'unidad' => ['unidad'],
             'eje' => ['eje'],
+            'nivel_trabajo' => ['nivel de trabajo', 'nivel trabajo'],
             'texto_oa' => ['oa original', 'objetivo de aprendizaje', 'oa'],
             'indicadores_nivelados' => ['indicadores', 'indicadores nivelados'],
             'habilidades_base' => ['habilidad', 'habilidades base'],
             'estrategias_dua' => ['estrategias dua', 'estrategias'],
+            'estrategias_oa' => ['estrategias oa'],
             'meta_especifica' => ['meta', 'meta especifica'],
+            'meta_integradora' => ['meta integradora'],
             'actividades' => ['actividades', 'actividad'],
+            'seguimiento' => ['seguimiento', 'seguimiento oa'],
+            'paec_activadores' => ['activadores', 'paec activadores'],
+            'paec_estrategias' => ['paec estrategias', 'estrategias paec'],
+            'paec_desregulacion' => ['desregulacion', 'paec desregulacion'],
             'criterios_evaluacion' => ['criterios de evaluacion', 'evaluacion', 'instrumento evaluacion'],
             'observaciones' => ['observaciones'],
         ];
@@ -272,7 +285,7 @@ class PaciStructuredDocumentParserService
             $warnings[] = 'No se detectaron pares titulo-valor claramente estructurados.';
         }
 
-        $required = ['estudiante', 'diagnostico', 'asignatura'];
+        $required = ['estudiante', 'diagnostico', 'asignatura', 'eje'];
         foreach ($required as $key) {
             if (empty($context[$key])) {
                 $warnings[] = 'No se detectó el campo clave: ' . $key;

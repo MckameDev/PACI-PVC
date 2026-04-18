@@ -101,7 +101,10 @@ PROMPT;
         $knowledgeContext = $this->resolveKnowledgeContext($data, $runtime);
 
         $extraOutputRules = '';
-        if ($modo === 'autocompletar_formulario_paci') {
+                $structuredDocumentMode = ($modo === 'autocompletar_formulario_paci_documento');
+                $formAutocompleteMode = in_array($modo, ['autocompletar_formulario_paci', 'autocompletar_formulario_paci_documento'], true);
+
+                if ($formAutocompleteMode) {
             $extraOutputRules = <<<RULES
     - Debes responder con la clave principal "form_data_sugerida".
     - "form_data_sugerida" debe contener solo campos compatibles con el formulario PACI:
@@ -109,14 +112,22 @@ PROMPT;
       profesor_jefe, profesor_asignatura, educador_diferencial, aplica_paec,
       paec_activadores, paec_estrategias, paec_desregulacion,
       perfil_dua, trayectoria, horario_apoyo.
+        - Si el documento trae datos textuales pero no IDs exactos, deja el ID vacio y completa el texto asociado en el campo disponible mas cercano.
+        - Prioriza el llenado de campos de identificacion, contexto y perfil antes de profundizar trayectoria.
         - Cada item de trayectoria debe incluir, cuando aplique, "adecuacion_oa" con:
             meta_integradora, estrategias, indicadores_nivelados, adecuaciones,
             actividades_graduales, lectura_complementaria, instrumento_evaluacion,
             justificacion, criterios_evaluacion, observaciones.
-    - Si no conoces un valor exacto, deja string vacio en vez de inventar ids.
+        - Si no conoces un valor exacto, deja string vacio en vez de inventar ids o nombres.
     - Incluye una clave adicional "recomendaciones_profundizacion" con sugerencias breves para mejorar la evaluacion del caso con datos mas precisos.
-    - Si faltan datos, entrega una propuesta base viable y explicita en "recomendaciones_profundizacion" que informacion adicional mejorar la personalizacion.
+        - Si faltan datos, entrega una propuesta base viable y explicita en "recomendaciones_profundizacion" que informacion adicional mejoraria la personalizacion.
     RULES;
+        }
+
+        if ($structuredDocumentMode) {
+            $extraOutputRules .= "\n    - En modo documento estructurado, la seccion trayectoria debe incluir minimo 12 filas: 4 para Lectura, 4 para Escritura y 4 para Comunicacion Oral.";
+            $extraOutputRules .= "\n    - Si faltan OA exactos, usa descripciones textuales y completa oa_id en vacio en vez de inventar UUID.";
+            $extraOutputRules .= "\n    - Para cada fila de trayectoria completa: _eje, oa_id u oa_original, meta_especifica, estrategias_dua, habilidades, seguimiento_registro y adecuacion_oa.criterios_evaluacion.";
         }
 
         $userPrompt = <<<USER
@@ -139,8 +150,8 @@ REGLAS DE SALIDA:
 - Debes mapear las 15 secciones del formulario fisico.
 - La seccion 10 debe venir en formato tabla con las columnas:
   EJE, OA ORIGINAL, OA ADAPTADO, INDICADORES, HABILIDAD, META, ESTRATEGIAS, ACTIVIDADES, LOGRO.
-- Debes considerar todos los valores disponibles de cada OA (id, codigo, texto, eje, indicadores, habilidades, nivel de trabajo y tipo de adecuacion) antes de proponer lineamientos, actividades y estrategias.
-- Si el contexto del estudiante est incompleto, genera una planificacion base flexible y agrega recomendaciones concretas para profundizar la evaluacion con mas detalle.
+    - Debes considerar todos los valores disponibles de cada OA (id, codigo, texto, eje, indicadores, habilidades, nivel de trabajo y tipo de adecuacion) antes de proponer lineamientos, actividades y estrategias.
+    - Si el contexto del estudiante está incompleto, genera una planificacion base flexible y agrega recomendaciones concretas para profundizar la evaluacion con mas detalle.
 - Si detectas rezago >= 2 niveles, la adecuacion sugerida debe ser Significativa.
 - Incluye el cierre obligatorio exactamente como texto final en el campo correspondiente.
 - Incluye un identificador unico del documento.
@@ -285,9 +296,19 @@ USER;
     {
         $errors = [];
         $modo = strtolower((string) ($runtime['parametros']['modo'] ?? ''));
+        $structuredDocumentMode = in_array($modo, ['autocompletar_formulario_paci_documento'], true);
 
         if (!$this->containsMandatoryClosure($parsed)) {
             $errors[] = 'Falta el cierre obligatorio: "Generado por AulaInclusiva.cl | Motor Pedagogico PACI".';
+        }
+
+        if ($structuredDocumentMode) {
+            $sugerida = $parsed['form_data_sugerida'] ?? null;
+            if (!is_array($sugerida)) {
+                $errors[] = 'No se encontró la estructura "form_data_sugerida".';
+            }
+
+            return $errors;
         }
 
         if ($modo === 'autocompletar_formulario_paci') {
