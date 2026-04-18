@@ -130,6 +130,88 @@ const normalizeTrayectoriaItem = (item) => ({
   eval_criterio: item?.eval_criterio || '',
 });
 
+const ALLOWED_TOP_LEVEL_FIELDS = new Set([
+  'estudiante_id',
+  'asignatura_id',
+  'fecha_emision',
+  'formato_generado',
+  'anio_escolar',
+  'profesor_jefe',
+  'profesor_asignatura',
+  'educador_diferencial',
+  'aplica_paec',
+  'paec_activadores',
+  'paec_estrategias',
+  'paec_desregulacion',
+  'paec_variables',
+  'perfil_dua',
+  'trayectoria',
+  'horario_apoyo',
+]);
+
+const pickValidSuggestionFields = (suggestion) => {
+  if (!suggestion || typeof suggestion !== 'object') return {};
+
+  return Object.entries(suggestion).reduce((acc, [key, value]) => {
+    if (!ALLOWED_TOP_LEVEL_FIELDS.has(key)) return acc;
+    acc[key] = value;
+    return acc;
+  }, {});
+};
+
+const normalizeSuggestionValueByField = (field, value, prev) => {
+  switch (field) {
+    case 'estudiante_id':
+    case 'asignatura_id':
+      return value ? String(value) : '';
+    case 'fecha_emision': {
+      const v = String(value || '').trim();
+      return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : prev?.fecha_emision || defaultFormData.fecha_emision;
+    }
+    case 'formato_generado': {
+      const normalized = String(value || '').trim();
+      return normalized === 'Completo' || normalized === 'Compacto'
+        ? normalized
+        : (prev?.formato_generado || defaultFormData.formato_generado);
+    }
+    case 'anio_escolar': {
+      const v = String(value || '').trim();
+      return /^\d{4}$/.test(v) ? v : (prev?.anio_escolar || defaultFormData.anio_escolar);
+    }
+    case 'profesor_jefe':
+    case 'profesor_asignatura':
+    case 'educador_diferencial':
+    case 'paec_activadores':
+    case 'paec_estrategias':
+    case 'paec_desregulacion':
+      return String(value || '');
+    case 'aplica_paec': {
+      const num = Number(value);
+      return Number.isFinite(num) && num > 0 ? 1 : 0;
+    }
+    case 'paec_variables': {
+      if (!Array.isArray(value)) return Array.isArray(prev?.paec_variables) ? prev.paec_variables : [];
+      return value.map((v, idx) => ({
+        tipo: String(v?.tipo || ''),
+        descripcion: String(v?.descripcion || ''),
+        estrategia: String(v?.estrategia || ''),
+        orden: Number(v?.orden || idx + 1),
+      }));
+    }
+    default:
+      return value;
+  }
+};
+
+const sanitizeSuggestion = (suggestion, prev) => {
+  const validFields = pickValidSuggestionFields(suggestion);
+
+  return Object.entries(validFields).reduce((acc, [field, value]) => {
+    acc[field] = normalizeSuggestionValueByField(field, value, prev);
+    return acc;
+  }, {});
+};
+
 export default function PaciWizardPage() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
@@ -300,14 +382,7 @@ export default function PaciWizardPage() {
 
   const handleApplyAiSuggestion = useCallback((suggestion, options = {}) => {
     setFormData((prev) => {
-      const {
-        fortaleza_ids: _omitFortalezas,
-        barrera_ids: _omitBarreras,
-        estrategia_dua_ids: _omitEstrategias,
-        acceso_curricular_ids: _omitAcceso,
-        habilidad_base_ids: _omitHabilidades,
-        ...safeSuggestion
-      } = suggestion || {};
+      const safeSuggestion = sanitizeSuggestion(suggestion, prev);
 
       const merged = {
         ...prev,
@@ -369,13 +444,17 @@ export default function PaciWizardPage() {
         return null;
       case 'trayectoria':
         if (formData.trayectoria.length === 0) return 'Debe agregar al menos un Objetivo de Aprendizaje';
-      for (let i = 0; i < formData.trayectoria.length; i += 1) {
-        const item = formData.trayectoria[i];
-        if (!item.oa_id) return `OA #${i + 1}: Debe seleccionar un Objetivo de Aprendizaje`;
-        if (!item.nivel_trabajo_id) return `OA #${i + 1}: Debe seleccionar un Nivel de Trabajo`;
-        const selectedIndicadores = Array.isArray(item.indicadores_seleccionados) ? item.indicadores_seleccionados.length : 0;
-        if (selectedIndicadores < 6) {
-          return `OA #${i + 1}: Debe seleccionar al menos 6 indicadores. Recomendación pedagógica obligatoria: 2 de L, 2 de ED y 2 de NL.`;
+        for (let i = 0; i < formData.trayectoria.length; i += 1) {
+          const item = formData.trayectoria[i];
+          if (!item.oa_id) return `OA #${i + 1}: Debe seleccionar un Objetivo de Aprendizaje`;
+          if (!item.nivel_trabajo_id) return `OA #${i + 1}: Debe seleccionar un Nivel de Trabajo`;
+          const selectedIndicadores = Array.isArray(item.indicadores_seleccionados) ? item.indicadores_seleccionados.length : 0;
+          if (selectedIndicadores < 6) {
+            return `OA #${i + 1}: Debe seleccionar al menos 6 indicadores. Recomendación pedagógica obligatoria: 2 de L, 2 de ED y 2 de NL.`;
+          }
+          if (item.tipo_adecuacion === 'Significativa' && !item.justificacion_tecnica?.trim()) {
+            return `OA #${i + 1}: La Justificacion Tecnica es obligatoria para adecuaciones Significativas`;
+          }
         }
         if (item.tipo_adecuacion === 'Significativa' && !item.justificacion_tecnica?.trim()) {
           return `OA #${i + 1}: La Justificacion Tecnica es obligatoria para adecuaciones Significativas`;

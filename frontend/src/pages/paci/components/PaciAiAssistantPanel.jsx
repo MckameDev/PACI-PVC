@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, RotateCcw, Search, Send, Sparkles } from 'lucide-react';
+import { Bot, FileUp, RotateCcw, Search, Send, Sparkles } from 'lucide-react';
 import Button from '../../../components/ui/Button';
 import api from '../../../api/axios';
-import { consultarPaciChatOpenRouter, generarPaciCompletoOpenRouter } from '../../../services/openRouterAiService';
+import { autocompletarPaciDesdeDocumentoOpenRouter, consultarPaciChatOpenRouter, generarPaciCompletoOpenRouter } from '../../../services/openRouterAiService';
 
 const INITIAL_CONTEXT = {
   clave_busqueda: '',
@@ -254,6 +254,20 @@ const extractFormSuggestion = (payload) => {
   return payload;
 };
 
+const extractStructuredAutocompleteSuggestion = (payload) => {
+  if (!payload || typeof payload !== 'object') return null;
+
+  if (payload.resultado_ia && typeof payload.resultado_ia === 'object') {
+    return extractFormSuggestion(payload.resultado_ia);
+  }
+
+  if (payload.data && typeof payload.data === 'object' && payload.data.resultado_ia) {
+    return extractStructuredAutocompleteSuggestion(payload.data);
+  }
+
+  return extractFormSuggestion(payload);
+};
+
 const buildFieldHelpMessage = (helpRequest) => {
   if (!helpRequest) return '';
 
@@ -360,6 +374,50 @@ const isPaciKnowledgeQuestion = (value) => {
   return hasQuestionShape && hasPaciScope;
 };
 
+const isQuestionLikeMessage = (value) => {
+  const raw = String(value || '').trim();
+  const text = normalizeText(raw);
+  if (!text) return false;
+
+  if (raw.includes('?')) return true;
+  if (/^(como|que|cual|cuando|donde|por que|porque|ayuda|explic|puedes|podrias|podr[ií]as|me puedes|me ayudas)/.test(text)) return true;
+  return false;
+};
+
+const isLikelyCurrentStepAnswer = (value, currentQuestion) => {
+  if (!currentQuestion) return false;
+  const raw = String(value || '').trim();
+  const text = normalizeText(raw);
+  if (!text) return false;
+
+  if (text === '/omitir') return true;
+
+  switch (currentQuestion.key) {
+    case 'clave_busqueda':
+      return looksLikeRut(raw);
+    case 'agregar_otro_oa':
+      return toYesNo(raw) !== null;
+    case 'profesor_jefe':
+    case 'profesor_asignatura':
+      return looksLikeEmail(raw) || raw.length >= 3;
+    case 'oa_id':
+      return isShowMoreCommand(raw)
+        || isShowPreviousCommand(raw)
+        || parseOaPageCommand(raw) !== null
+        || /^\d+$/.test(raw)
+        || raw.length >= 2;
+    default:
+      return raw.length >= 2;
+  }
+};
+
+const isConversationalInterruption = (value, currentQuestion) => {
+  if (!currentQuestion) return false;
+  if (!isQuestionLikeMessage(value)) return false;
+  if (isLikelyCurrentStepAnswer(value, currentQuestion)) return false;
+  return true;
+};
+
 const isShowMoreCommand = (value) => {
   const text = normalizeText(value);
   if (!text) return false;
@@ -457,6 +515,83 @@ const buildLocalPaciReasoningResponse = (question, { context, formSnapshot, acti
     `Estamos en ${stepLabel}. Si quieres, te respondo con: contexto, criterio tecnico, ejemplo aplicado y siguiente accion.`,
     'Hazme la pregunta directa (por ejemplo: "como redacto una meta integradora para este OA?").',
   ].join('\n');
+};
+
+const summarizeSuggestionCompleteness = (suggestion, currentForm = {}) => {
+  const merged = {
+    ...(currentForm && typeof currentForm === 'object' ? currentForm : {}),
+    ...(suggestion && typeof suggestion === 'object' ? suggestion : {}),
+  };
+
+  const requiredTop = [
+    { key: 'estudiante_id', label: 'Estudiante' },
+    { key: 'asignatura_id', label: 'Asignatura' },
+    { key: 'fecha_emision', label: 'Fecha emisión' },
+    { key: 'formato_generado', label: 'Formato generado' },
+  ];
+
+  const missingTop = requiredTop
+    .filter((field) => !String(merged?.[field.key] || '').trim())
+    .map((field) => field.label);
+
+  const trayectoria = Array.isArray(merged?.trayectoria) ? merged.trayectoria : [];
+  const invalidRows = trayectoria
+    .map((row, idx) => {
+      const missing = [];
+      if (!String(row?.oa_id || '').trim()) missing.push('oa_id');
+      if (!String(row?.nivel_trabajo_id || '').trim()) missing.push('nivel_trabajo_id');
+      const hasMeta = String(row?.adecuacion_oa?.meta_integradora || row?.meta_especifica || '').trim();
+      if (!hasMeta) missing.push('meta (integradora o específica)');
+      return { idx: idx + 1, missing };
+    })
+    .filter((row) => row.missing.length > 0);
+
+  const hasPerfilDuaText = !!String(
+    merged?.perfil_dua?.fortalezas
+    || merged?.perfil_dua?.barreras
+    || merged?.perfil_dua?.habilidades_base
+    || ''
+  ).trim();
+
+  const lines = [];
+  lines.push(`Chequeo rápido del formulario sugerido: identificación ${missingTop.length === 0 ? 'ok' : 'incompleta'}, trayectoria ${trayectoria.length > 0 ? `${trayectoria.length} fila(s)` : 'vacía'}.`);
+
+  if (missingTop.length > 0) {
+    lines.push(`Faltan campos clave: ${missingTop.join(', ')}.`);
+  }
+
+  if (trayectoria.length === 0) {
+    lines.push('Falta agregar al menos una fila en Trayectoria OA.');
+  } else if (invalidRows.length > 0) {
+    const detail = invalidRows
+      .slice(0, 3)
+      .map((row) => `OA #${row.idx}: ${row.missing.join(', ')}`)
+      .join(' | ');
+    lines.push(`Hay filas de trayectoria incompletas: ${detail}.`);
+  }
+
+  if (!hasPerfilDuaText) {
+    lines.push('Sugerencia: reforzar Perfil DUA (fortalezas/barreras/habilidades base) para personalizar mejor las estrategias.');
+  }
+
+  return {
+    ok: missingTop.length === 0 && trayectoria.length > 0 && invalidRows.length === 0,
+    message: lines.join(' '),
+  };
+};
+
+const buildCurrentStudentSignals = (context, formSnapshot) => {
+  const perfil = formSnapshot?.perfil_dua || {};
+  return {
+    diagnostico: formSnapshot?.paec_activadores || context?.diagnostico_nee || '',
+    fortalezas: perfil?.fortalezas || '',
+    barreras: perfil?.barreras || perfil?.barreras_personalizadas || '',
+    habilidades_base: perfil?.habilidades_base || '',
+    preferencias_representacion: perfil?.preferencias_representacion || '',
+    preferencias_expresion: perfil?.preferencias_expresion || '',
+    preferencias_motivacion: perfil?.preferencias_motivacion || '',
+    estrategias_dua_actuales: formSnapshot?.trayectoria?.[0]?.estrategias_dua || context?.estrategias_oa || '',
+  };
 };
 
 const buildLocalSuggestion = (context, notes, oaEntries = []) => {
@@ -595,6 +730,10 @@ export default function PaciAiAssistantPanel({
   const [oaDraft, setOaDraft] = useState(hydratedState.oaDraft || buildEmptyOaDraft());
   const [oaDrafts, setOaDrafts] = useState(hydratedState.oaDrafts || []);
   const [oaChatPageByContext, setOaChatPageByContext] = useState({});
+  const [structuredFile, setStructuredFile] = useState(null);
+  const [structuredLoading, setStructuredLoading] = useState(false);
+  const [structuredResult, setStructuredResult] = useState(null);
+  const [oaDetailsById, setOaDetailsById] = useState({});
   const lastHelpRequestId = useRef(null);
   const chatViewportRef = useRef(null);
 
@@ -848,6 +987,7 @@ export default function PaciAiAssistantPanel({
           oa_id: byIndex.id,
           unidad: normalizeUnidadValue(byIndex.unidad || byIndex.unidad_nombre || byIndex.ambito || byIndex.nucleo || ctx.unidad || ''),
         },
+        oaData: byIndex,
         message: `OA seleccionado: ${byIndex.codigo_oa || byIndex.id_oa || byIndex.id}.`,
       };
     }
@@ -863,6 +1003,7 @@ export default function PaciAiAssistantPanel({
           oa_id: codeMatch.id,
           unidad: normalizeUnidadValue(codeMatch.unidad || codeMatch.unidad_nombre || codeMatch.ambito || codeMatch.nucleo || ctx.unidad || ''),
         },
+        oaData: codeMatch,
         message: `OA seleccionado: ${codeMatch.codigo_oa || codeMatch.id_oa || codeMatch.id}.`,
       };
     }
@@ -882,8 +1023,112 @@ export default function PaciAiAssistantPanel({
         oa_id: textMatch.id,
         unidad: normalizeUnidadValue(textMatch.unidad || textMatch.unidad_nombre || textMatch.ambito || textMatch.nucleo || ctx.unidad || ''),
       },
+      oaData: textMatch,
       message: `OA seleccionado: ${textMatch.codigo_oa || textMatch.id_oa || textMatch.id}.`,
     };
+  };
+
+  const fetchOaDetail = async (oaId) => {
+    if (!oaId) return null;
+    if (oaDetailsById[oaId]) return oaDetailsById[oaId];
+    try {
+      const res = await api.get(`/oa/${oaId}`);
+      const item = res?.data?.data || null;
+      if (item) {
+        setOaDetailsById((prev) => ({ ...prev, [oaId]: item }));
+      }
+      return item;
+    } catch {
+      return null;
+    }
+  };
+
+  const resolveActiveOaContext = async (preferredOaData = null, preferredPatch = null) => {
+    const patch = preferredPatch && typeof preferredPatch === 'object' ? preferredPatch : {};
+    const trayectoria = Array.isArray(formSnapshot?.trayectoria) ? formSnapshot.trayectoria : [];
+
+    const fromForm = [...trayectoria]
+      .reverse()
+      .find((item) => String(item?.oa_id || '').trim());
+
+    const active = {
+      oa_id: patch.oa_id || context.oa_id || fromForm?.oa_id || '',
+      asignatura_id: context.asignatura_id || fromForm?._asignatura_id || formSnapshot?.asignatura_id || '',
+      nivel_trabajo_id: patch.nivel_trabajo_id || context.nivel_trabajo_id || fromForm?.nivel_trabajo_id || '',
+      eje: patch.eje || context.eje || fromForm?._eje || '',
+      unidad: patch.unidad || context.unidad || fromForm?._unidad || '',
+      trayectoria_row: fromForm || null,
+    };
+
+    let oaDetail = preferredOaData;
+    if (!oaDetail && active.oa_id) {
+      oaDetail = await fetchOaDetail(active.oa_id);
+    }
+
+    return {
+      ...active,
+      oa_detail: oaDetail,
+    };
+  };
+
+  const buildOaCoachingPrompt = (oaContext) => {
+    const oa = oaContext?.oa_detail || {};
+    const student = buildCurrentStudentSignals(context, formSnapshot);
+    const oaLabel = oa?.codigo_oa || oa?.id_oa || oaContext?.oa_id || 'OA seleccionado';
+
+    return [
+      `Necesito apoyo pedagógico automatizado para ${oaLabel}.`,
+      'Devuélveme respuesta breve y accionable con este orden:',
+      '1) Meta integradora sugerida (1 párrafo corto).',
+      '2) 3 estrategias DUA concretas en aula (representación, acción/expresión, implicación).',
+      '3) 2 actividades graduales alineadas al OA y nivel.',
+      '4) 3 criterios de evaluación observables.',
+      '5) 1 sugerencia de seguimiento semanal.',
+      '',
+      'Contexto OA:',
+      `- oa_id: ${oaContext?.oa_id || ''}`,
+      `- código OA: ${oa?.codigo_oa || oa?.id_oa || ''}`,
+      `- texto OA: ${oa?.texto_oa || ''}`,
+      `- eje: ${oaContext?.eje || oa?.eje || ''}`,
+      `- nivel_trabajo_id: ${oaContext?.nivel_trabajo_id || oa?.nivel_trabajo_id || ''}`,
+      `- unidad: ${oaContext?.unidad || oa?.unidad || oa?.unidad_nombre || ''}`,
+      `- habilidad_core: ${oa?.habilidad_core || ''}`,
+      '',
+      'Contexto estudiante preliminar:',
+      `- diagnostico: ${student.diagnostico}`,
+      `- fortalezas: ${student.fortalezas}`,
+      `- barreras: ${student.barreras}`,
+      `- habilidades_base: ${student.habilidades_base}`,
+      `- preferencias_representacion: ${student.preferencias_representacion}`,
+      `- preferencias_expresion: ${student.preferencias_expresion}`,
+      `- preferencias_motivacion: ${student.preferencias_motivacion}`,
+      '',
+      'No inventes IDs ni datos clínicos. Si faltan antecedentes, indícalo en una línea final de “datos que conviene completar”.',
+    ].join('\n');
+  };
+
+  const requestOaCoachingSuggestion = async (preferredOaData = null, preferredPatch = null) => {
+    const oaContext = await resolveActiveOaContext(preferredOaData, preferredPatch);
+    if (!oaContext?.oa_id) return '';
+
+    const prompt = buildOaCoachingPrompt(oaContext);
+
+    try {
+      const res = await consultarPaciChatOpenRouter({
+        pregunta_docente: prompt,
+        contexto_actual: {
+          oa_id: oaContext.oa_id,
+          asignatura_id: oaContext.asignatura_id,
+          nivel_trabajo_id: oaContext.nivel_trabajo_id,
+          eje: oaContext.eje,
+          unidad: oaContext.unidad,
+        },
+      });
+      const aiText = extractReasoningAnswerText(res?.data);
+      return String(aiText || '').trim();
+    } catch {
+      return '';
+    }
   };
 
   const resolveEjeByText = (value, asignaturaId) => {
@@ -1102,6 +1347,24 @@ export default function PaciAiAssistantPanel({
     });
   };
 
+  const handleConversationalQuestion = async (questionText, currentQuestion) => {
+    setComposer('');
+    setLookingUp(true);
+    try {
+      const answer = await askPaciReasoningQuestion(questionText);
+      setChat((prev) => [
+        ...prev,
+        { role: 'user', text: questionText },
+        { role: 'assistant', text: answer },
+        ...(currentQuestion
+          ? [{ role: 'assistant', text: `Retomemos donde íbamos: ${getQuestionPrompt(currentQuestion, context, formSnapshot)}` }]
+          : []),
+      ]);
+    } finally {
+      setLookingUp(false);
+    }
+  };
+
   const handleSend = async () => {
     const text = composer.trim();
     if (!text || loading || lookingUp) return;
@@ -1137,21 +1400,12 @@ export default function PaciAiAssistantPanel({
     }
 
     if (isPaciKnowledgeQuestion(text)) {
-      setComposer('');
-      setLookingUp(true);
-      try {
-        const answer = await askPaciReasoningQuestion(text);
-        setChat((prev) => [
-          ...prev,
-          { role: 'user', text },
-          { role: 'assistant', text: answer },
-          ...(currentQuestion
-            ? [{ role: 'assistant', text: `Si quieres, seguimos con el formulario aquí: ${getQuestionPrompt(currentQuestion, context, formSnapshot)}` }]
-            : []),
-        ]);
-      } finally {
-        setLookingUp(false);
-      }
+      await handleConversationalQuestion(text, currentQuestion);
+      return;
+    }
+
+    if (isConversationalInterruption(text, currentQuestion)) {
+      await handleConversationalQuestion(text, currentQuestion);
       return;
     }
 
@@ -1357,6 +1611,19 @@ export default function PaciAiAssistantPanel({
             role: 'assistant',
             text: 'Recuerda: Meta específica y Meta integradora son campos distintos. La meta integradora debe estar alineada al OA seleccionado.',
           });
+
+          if (currentQuestion.key === 'oa_id' && resolvedMatch?.type === 'oa') {
+            const coaching = await requestOaCoachingSuggestion(resolvedMatch.oaData, {
+              ...partialContext,
+              ...resolvedMatch.patch,
+            });
+            if (coaching) {
+              messages.push({
+                role: 'assistant',
+                text: `Sugerencia automatizada según OA + contexto preliminar del estudiante:\n${coaching}`,
+              });
+            }
+          }
         }
         messages.push({ role: 'assistant', text: getQuestionPrompt(nextQuestion, partialContext, formSnapshot) });
         setChat((prev) => [...prev, ...messages]);
@@ -1430,6 +1697,60 @@ export default function PaciAiAssistantPanel({
     }
   };
 
+  const handleStructuredFileChange = (event) => {
+    const file = event.target.files?.[0] || null;
+    setStructuredFile(file);
+    setStructuredResult(null);
+  };
+
+  const handleStructuredAutocomplete = async () => {
+    if (!structuredFile || structuredLoading) return;
+
+    setStructuredLoading(true);
+    try {
+      const contextoJson = JSON.stringify({
+        estudiante_id: context.estudiante_id || formSnapshot?.estudiante_id || '',
+        asignatura_id: context.asignatura_id || formSnapshot?.asignatura_id || '',
+        estudiante_iniciales: context.estudiante_iniciales || formSnapshot?.estudiante_iniciales || '',
+        apoderado: context.apoderado || formSnapshot?.apoderado || '',
+        diagnostico_nee: context.diagnostico_nee || formSnapshot?.diagnostico_nee || '',
+        profesor_jefe: context.profesor_jefe || formSnapshot?.profesor_jefe || '',
+        profesor_asignatura: context.profesor_asignatura || formSnapshot?.profesor_asignatura || '',
+        educador_diferencial: context.educador_diferencial || formSnapshot?.educador_diferencial || '',
+        eje: context.eje || formSnapshot?.eje || '',
+        nivel_trabajo_id: context.nivel_trabajo_id || formSnapshot?.nivel_trabajo_id || '',
+        oa_id: context.oa_id || formSnapshot?.oa_id || '',
+        unidad: context.unidad || formSnapshot?.unidad || '',
+      });
+
+      const res = await autocompletarPaciDesdeDocumentoOpenRouter(structuredFile, contextoJson);
+      const data = res.data?.data || null;
+      const suggestion = extractStructuredAutocompleteSuggestion(data);
+
+      setStructuredResult(data);
+
+      if (suggestion && typeof suggestion === 'object') {
+        const qualityCheck = summarizeSuggestionCompleteness(suggestion, formSnapshot);
+        onApplySuggestion(suggestion);
+        setChat((prev) => [...prev, {
+          role: 'assistant',
+          text: `Ya procesé el documento estructurado y apliqué la sugerencia al formulario. ${qualityCheck.message}`,
+        }]);
+      } else {
+        setChat((prev) => [...prev, {
+          role: 'assistant',
+          text: 'Procesé el documento estructurado, pero no vino un form_data_sugerida utilizable.',
+        }]);
+      }
+    } catch (error) {
+      const message = error?.response?.data?.message || 'No se pudo procesar el documento estructurado.';
+      setStructuredResult({ error: message });
+      setChat((prev) => [...prev, { role: 'assistant', text: message }]);
+    } finally {
+      setStructuredLoading(false);
+    }
+  };
+
   if (!isOpen) {
     return (
       <div className="h-full rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4">
@@ -1475,6 +1796,40 @@ export default function PaciAiAssistantPanel({
         </div>
 
         <div className="rounded-xl border border-slate-200 p-3">
+          <div className="mb-3 space-y-2 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Autocompletar desde documento</p>
+            <p className="text-xs text-slate-500">
+              Sube un DOCX, PDF o TXT estructurado para probar el llenado automático del PACI.
+            </p>
+            <input
+              type="file"
+              accept=".docx,.pdf,.txt,.md,.csv"
+              onChange={handleStructuredFileChange}
+              className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:opacity-95"
+            />
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={handleStructuredAutocomplete}
+                disabled={!structuredFile || structuredLoading || lookingUp || loading}
+              >
+                <FileUp className="h-4 w-4" />
+                {structuredLoading ? 'Procesando...' : 'Probar autocompletado'}
+              </Button>
+              {structuredFile && (
+                <span className="text-xs text-slate-500">Archivo: {structuredFile.name}</span>
+              )}
+            </div>
+            {structuredResult?.analisis_documento && (
+              <div className="rounded-lg bg-white p-2 text-xs text-slate-600">
+                <p>Pares detectados: {structuredResult.analisis_documento.pares_detectados || 0}</p>
+                {Array.isArray(structuredResult.analisis_documento.advertencias) && structuredResult.analisis_documento.advertencias.length > 0 && (
+                  <p className="mt-1 text-amber-600">{structuredResult.analisis_documento.advertencias.join(' | ')}</p>
+                )}
+              </div>
+            )}
+          </div>
+
           <div className="flex gap-2">
             <input
               value={composer}

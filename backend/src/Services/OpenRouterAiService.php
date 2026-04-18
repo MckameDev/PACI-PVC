@@ -65,6 +65,7 @@ PROMPT;
     private string $baseUrl;
     private string $referer;
     private string $appTitle;
+    private ?AiKnowledgeService $knowledgeService;
 
     public function __construct()
     {
@@ -75,6 +76,12 @@ PROMPT;
         $this->baseUrl  = Env::get('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1');
         $this->referer  = Env::get('OPENROUTER_SITE_URL', '');
         $this->appTitle = Env::get('OPENROUTER_APP_NAME', 'PACI-PVC');
+
+        try {
+            $this->knowledgeService = new AiKnowledgeService();
+        } catch (Throwable $e) {
+            $this->knowledgeService = null;
+        }
     }
 
     /**
@@ -90,9 +97,14 @@ PROMPT;
         $runtime = $this->loadRuntimeConfig($data);
         $systemPrompt = $runtime['prompt'];
         $modo = (string) ($runtime['parametros']['modo'] ?? '');
+        $knowledgeDigest = $this->resolveKnowledgeDigest();
+        $knowledgeContext = $this->resolveKnowledgeContext($data, $runtime);
 
         $extraOutputRules = '';
-        if ($modo === 'autocompletar_formulario_paci') {
+                $structuredDocumentMode = ($modo === 'autocompletar_formulario_paci_documento');
+                $formAutocompleteMode = in_array($modo, ['autocompletar_formulario_paci', 'autocompletar_formulario_paci_documento'], true);
+
+                if ($formAutocompleteMode) {
             $extraOutputRules = <<<RULES
     - Debes responder con la clave principal "form_data_sugerida".
     - "form_data_sugerida" debe contener solo campos compatibles con el formulario PACI:
@@ -100,12 +112,22 @@ PROMPT;
       profesor_jefe, profesor_asignatura, educador_diferencial, aplica_paec,
       paec_activadores, paec_estrategias, paec_desregulacion,
       perfil_dua, trayectoria, horario_apoyo.
+        - Si el documento trae datos textuales pero no IDs exactos, deja el ID vacio y completa el texto asociado en el campo disponible mas cercano.
+        - Prioriza el llenado de campos de identificacion, contexto y perfil antes de profundizar trayectoria.
         - Cada item de trayectoria debe incluir, cuando aplique, "adecuacion_oa" con:
             meta_integradora, estrategias, indicadores_nivelados, adecuaciones,
             actividades_graduales, lectura_complementaria, instrumento_evaluacion,
             justificacion, criterios_evaluacion, observaciones.
-    - Si no conoces un valor exacto, deja string vacio en vez de inventar ids.
+        - Si no conoces un valor exacto, deja string vacio en vez de inventar ids o nombres.
+    - Incluye una clave adicional "recomendaciones_profundizacion" con sugerencias breves para mejorar la evaluacion del caso con datos mas precisos.
+        - Si faltan datos, entrega una propuesta base viable y explicita en "recomendaciones_profundizacion" que informacion adicional mejoraria la personalizacion.
     RULES;
+        }
+
+        if ($structuredDocumentMode) {
+            $extraOutputRules .= "\n    - En modo documento estructurado, la seccion trayectoria debe incluir minimo 12 filas: 4 para Lectura, 4 para Escritura y 4 para Comunicacion Oral.";
+            $extraOutputRules .= "\n    - Si faltan OA exactos, usa descripciones textuales y completa oa_id en vacio en vez de inventar UUID.";
+            $extraOutputRules .= "\n    - Para cada fila de trayectoria completa: _eje, oa_id u oa_original, meta_especifica, estrategias_dua, habilidades, seguimiento_registro y adecuacion_oa.criterios_evaluacion.";
         }
 
         $userPrompt = <<<USER
@@ -117,11 +139,19 @@ CONTEXTO ESTRUCTURADO:
 PARAMETROS EDITABLES POR EL DOCENTE:
 {$this->stringifyParametros($runtime['parametros'])}
 
+MEMORIA CURRICULAR GLOBAL (RESUMEN DE LIBROS ACTIVOS):
+{$knowledgeDigest}
+
+BASE DE CONOCIMIENTO CURRICULAR (LIBROS Y MATERIAL CARGADO):
+{$knowledgeContext}
+
 REGLAS DE SALIDA:
 - Responde SOLO con JSON valido.
 - Debes mapear las 15 secciones del formulario fisico.
 - La seccion 10 debe venir en formato tabla con las columnas:
   EJE, OA ORIGINAL, OA ADAPTADO, INDICADORES, HABILIDAD, META, ESTRATEGIAS, ACTIVIDADES, LOGRO.
+    - Debes considerar todos los valores disponibles de cada OA (id, codigo, texto, eje, indicadores, habilidades, nivel de trabajo y tipo de adecuacion) antes de proponer lineamientos, actividades y estrategias.
+    - Si el contexto del estudiante está incompleto, genera una planificacion base flexible y agrega recomendaciones concretas para profundizar la evaluacion con mas detalle.
 - Si detectas rezago >= 2 niveles, la adecuacion sugerida debe ser Significativa.
 - Incluye el cierre obligatorio exactamente como texto final en el campo correspondiente.
 - Incluye un identificador unico del documento.
@@ -154,6 +184,8 @@ USER;
         $estrategiasDua  = $data['estrategias_dua'] ?? '';
         $habilidadesBase = $data['habilidades_base'] ?? '';
         $parametrosContexto = $this->stringifyParametros($runtime['parametros']);
+        $knowledgeDigest = $this->resolveKnowledgeDigest();
+        $knowledgeContext = $this->resolveKnowledgeContext($data, $runtime);
         
 
         $userPrompt = <<<USER
@@ -169,6 +201,15 @@ USER;
 
 **Parametros de personalizacion para esta generacion:**
 {$parametrosContexto}
+
+**Memoria curricular global (libros activos):**
+{$knowledgeDigest}
+
+**Base de conocimiento curricular (libros cargados):**
+{$knowledgeContext}
+
+Considera todos los valores disponibles del OA y su planificación (id, codigo, texto, eje, indicadores, habilidades, nivel de trabajo, barreras, fortalezas y tipo de adecuacion) para personalizar la respuesta.
+Si los datos vienen incompletos, devuelve una propuesta base junto a recomendaciones puntuales para completar la evaluacion del estudiante y mejorar la precision.
 
 Genera la adaptacion del OA en formato JSON.
 USER;
@@ -255,9 +296,19 @@ USER;
     {
         $errors = [];
         $modo = strtolower((string) ($runtime['parametros']['modo'] ?? ''));
+        $structuredDocumentMode = in_array($modo, ['autocompletar_formulario_paci_documento'], true);
 
         if (!$this->containsMandatoryClosure($parsed)) {
             $errors[] = 'Falta el cierre obligatorio: "Generado por AulaInclusiva.cl | Motor Pedagogico PACI".';
+        }
+
+        if ($structuredDocumentMode) {
+            $sugerida = $parsed['form_data_sugerida'] ?? null;
+            if (!is_array($sugerida)) {
+                $errors[] = 'No se encontró la estructura "form_data_sugerida".';
+            }
+
+            return $errors;
         }
 
         if ($modo === 'autocompletar_formulario_paci') {
@@ -610,5 +661,208 @@ USER;
         }
 
         return 1500;
+    }
+
+    private function resolveKnowledgeContext(array $data, array $runtime): string
+    {
+        if ($this->knowledgeService === null) {
+            return '- Base de conocimiento no disponible.';
+        }
+
+        $usarConocimiento = $runtime['parametros']['usar_conocimiento_libros'] ?? true;
+        if ($usarConocimiento === false || $usarConocimiento === 'false' || $usarConocimiento === '0') {
+            return '- Desactivada por parametro usar_conocimiento_libros.';
+        }
+
+        $query = $this->buildKnowledgeQuery($data);
+        if ($query === '') {
+            return '- Sin contexto suficiente para buscar en libros.';
+        }
+
+        $filters = [
+            'materia' => $data['materia'] ?? $data['asignatura'] ?? null,
+            'nivel' => $data['nivel_trabajo'] ?? $data['curso'] ?? null,
+        ];
+
+        try {
+            $context = $this->knowledgeService->buildContextForPrompt($query, $filters, 4200, 6);
+            if ($context === '') {
+                return '- No se encontraron fragmentos relevantes en los libros cargados.';
+            }
+
+            return $context;
+        } catch (Throwable $e) {
+            return '- Error al consultar base de conocimiento: ' . $e->getMessage();
+        }
+    }
+
+    private function resolveKnowledgeDigest(): string
+    {
+        if ($this->knowledgeService === null) {
+            return '- Base de conocimiento no disponible.';
+        }
+
+        try {
+            return $this->knowledgeService->buildKnowledgeDigest(12);
+        } catch (Throwable $e) {
+            return '- Error al construir memoria curricular: ' . $e->getMessage();
+        }
+    }
+
+    private function buildKnowledgeQuery(array $data): string
+    {
+        $keys = [
+            'texto_oa',
+            'oa_original',
+            'oa_id',
+            'codigo_oa',
+            'id_oa',
+            'asignatura',
+            'materia',
+            'unidad',
+            'eje',
+            'tipo_oa',
+            'tipo_adecuacion',
+            'nivel_original',
+            'nivel_trabajo',
+            'indicadores_nivelados',
+            'indicadores_seleccionados',
+            'habilidades_base',
+            'habilidades',
+            'meta_especifica',
+            'observaciones',
+            'diagnostico',
+            'barreras',
+            'fortalezas',
+            'estrategias_dua',
+            'contexto_curricular',
+            'necesidades_estudiante',
+            'trayectoria',
+        ];
+
+        $parts = [];
+        foreach ($keys as $key) {
+            $value = $data[$key] ?? null;
+            if ($value === null) {
+                continue;
+            }
+
+            if (is_array($value)) {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+
+            $text = trim((string) $value);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        if (empty($parts)) {
+            return '';
+        }
+
+        $query = implode(' | ', $parts);
+        $trayectoriaSignals = $this->extractTrayectoriaSignals($data['trayectoria'] ?? null);
+        if ($trayectoriaSignals !== '') {
+            $query .= ' | ' . $trayectoriaSignals;
+        }
+
+        return $query;
+    }
+
+    private function extractTrayectoriaSignals(mixed $trayectoria): string
+    {
+        if (!is_array($trayectoria) || empty($trayectoria)) {
+            return '';
+        }
+
+        $rows = [];
+        foreach ($trayectoria as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+
+            $values = [];
+            $fields = [
+                'oa_id',
+                'id_oa',
+                'codigo_oa',
+                'oa_original',
+                'oa_texto',
+                'texto_oa',
+                '_eje',
+                'eje',
+                'tipo_adecuacion',
+                'nivel_trabajo_id',
+                'nivel_logro',
+                'habilidades',
+                'habilidad',
+                'meta_especifica',
+                'estrategias_dua',
+                'observaciones',
+            ];
+
+            foreach ($fields as $field) {
+                $value = $item[$field] ?? null;
+                if ($value === null) {
+                    continue;
+                }
+
+                if (is_array($value)) {
+                    $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                }
+
+                $text = trim((string) $value);
+                if ($text !== '') {
+                    $values[] = $text;
+                }
+            }
+
+            if (isset($item['indicadores_seleccionados']) && is_array($item['indicadores_seleccionados'])) {
+                $indicatorIds = array_filter(array_map(static fn($v) => trim((string) $v), $item['indicadores_seleccionados']));
+                if (!empty($indicatorIds)) {
+                    $values[] = 'indicadores:' . implode(',', $indicatorIds);
+                }
+            }
+
+            if (isset($item['adecuacion_oa']) && is_array($item['adecuacion_oa'])) {
+                $aoa = $item['adecuacion_oa'];
+                $aoaFields = [
+                    'meta_integradora',
+                    'estrategias',
+                    'indicadores_nivelados',
+                    'adecuaciones',
+                    'actividades_graduales',
+                    'criterios_evaluacion',
+                    'observaciones',
+                ];
+
+                foreach ($aoaFields as $field) {
+                    $value = $aoa[$field] ?? null;
+                    if ($value === null) {
+                        continue;
+                    }
+
+                    if (is_array($value)) {
+                        $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                    }
+
+                    $text = trim((string) $value);
+                    if ($text !== '') {
+                        $values[] = $text;
+                    }
+                }
+            }
+
+            if (!empty($values)) {
+                $rows[] = implode(' ; ', array_values(array_unique($values)));
+            }
+        }
+
+        if (empty($rows)) {
+            return '';
+        }
+
+        return implode(' | ', $rows);
     }
 }

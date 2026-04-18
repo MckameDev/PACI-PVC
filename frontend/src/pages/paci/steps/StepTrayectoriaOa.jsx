@@ -382,7 +382,7 @@ export default function StepTrayectoriaOa({ data, onChange, estudiante, onReques
       <div>
         <h2 className="text-lg font-semibold text-slate-900">Paso 3: Trayectoria de Objetivos de Aprendizaje</h2>
         <p className="text-sm text-secondary mt-1">
-          Agregue los OA a trabajar. El sistema calcula automáticamente el tipo de adecuación según la diferencia entre nivel oficial y nivel de trabajo. Si el desfase es de 2 o más niveles, se recomienda adecuación significativa.
+          Agregue los OA a trabajar. El sistema calcula automáticamente el tipo de adecuación según la diferencia entre nivel oficial y nivel de trabajo. Si el desfase es de 2 o más niveles, se recomienda adecuación significativa. <strong>La advertencia de Adecuación Significativa es informativa y puede completarse después.</strong>
         </p>
         {nivelOficial > 0 && (
           <p className="text-sm text-primary font-medium mt-1">
