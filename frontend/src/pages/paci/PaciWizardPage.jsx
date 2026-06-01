@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Save, CheckCircle, FileDown, Loader2, MessageSquare } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Save, CheckCircle, FileDown, Loader2, MessageSquare, Sparkles } from 'lucide-react';
 import api from '../../api/axios';
 import useAuthStore from '../../stores/useAuthStore';
 import Button from '../../components/ui/Button';
@@ -15,6 +15,7 @@ import StepPAEC from './steps/StepPAEC';
 import StepHorarioApoyo from './steps/StepHorarioApoyo';
 import StepResumen from './steps/StepResumen';
 import PaciAiAssistantPanel from './components/PaciAiAssistantPanel';
+import PaciAiRedactorModal from './components/PaciAiRedactorModal';
 
 const BASE_STEPS = [
   { key: 'identificacion', label: 'Identificacion' },
@@ -225,6 +226,7 @@ export default function PaciWizardPage() {
   const [savedPaciId, setSavedPaciId] = useState(null);
   const [estudiante, setEstudiante] = useState(null);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiRedactorOpen, setAiRedactorOpen] = useState(false);
   const [assistantState, setAssistantState] = useState(null);
   const [fieldHelpRequest, setFieldHelpRequest] = useState(null);
   const fieldHelpSeq = useRef(0);
@@ -456,10 +458,6 @@ export default function PaciWizardPage() {
             return `OA #${i + 1}: La Justificacion Tecnica es obligatoria para adecuaciones Significativas`;
           }
         }
-        if (item.tipo_adecuacion === 'Significativa' && !item.justificacion_tecnica?.trim()) {
-          return `OA #${i + 1}: La Justificacion Tecnica es obligatoria para adecuaciones Significativas`;
-        }
-      }
         return null;
       default:
         return null;
@@ -764,6 +762,54 @@ export default function PaciWizardPage() {
           <MessageSquare className="h-4 w-4" /> Abrir chat IA
         </button>
       )}
+
+      <button
+        type="button"
+        onClick={() => setAiRedactorOpen(true)}
+        className="fixed bottom-6 right-44 z-40 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-accent to-primary px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-accent/30 hover:opacity-95"
+        title="Redactar texto técnico con IA (notas breves → texto final)"
+      >
+        <Sparkles className="h-4 w-4" /> Redactar con IA
+      </button>
+
+      <PaciAiRedactorModal
+        open={aiRedactorOpen}
+        onClose={() => setAiRedactorOpen(false)}
+        hasPAEC={!!user?.paec_habilitado}
+        campo={currentStepKey || 'texto_paci'}
+        campoLabel={activeSteps[currentStep - 1]?.label || 'PACI'}
+        contexto={{
+          paso_actual: currentStepKey,
+          asignatura_id: formData.asignatura_id,
+          estudiante: estudiante ? { nombre: estudiante.nombre, curso: estudiante.curso_nombre } : null,
+          perfil_dua: formData.perfil_dua,
+          aplica_paec: formData.aplica_paec,
+        }}
+        onApply={({ plain, campoDestino }) => {
+          // Resolver campo destino: el sugerido por IA > el mapeo del paso > fallback portapapeles
+          const stepDefault = { paec: 'paec_estrategias' }[currentStepKey];
+          const target = campoDestino || stepDefault;
+
+          // Soporta campos anidados tipo "perfil_dua.fortalezas"
+          if (target && target.includes('.')) {
+            const [root, child] = target.split('.');
+            if (root in formData && formData[root] && typeof formData[root] === 'object') {
+              setFormData((prev) => ({ ...prev, [root]: { ...prev[root], [child]: plain } }));
+              setAlert({ type: 'success', message: `Texto IA aplicado a "${target}".` });
+              return;
+            }
+          }
+
+          if (target && Object.prototype.hasOwnProperty.call(formData, target)) {
+            setFormData((prev) => ({ ...prev, [target]: plain }));
+            setAlert({ type: 'success', message: `Texto IA aplicado a "${target}".` });
+            return;
+          }
+
+          navigator.clipboard?.writeText(plain).catch(() => {});
+          setAlert({ type: 'success', message: 'Texto IA copiado al portapapeles. Pégalo en el campo deseado.' });
+        }}
+      />
     </div>
   );
 }

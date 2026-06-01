@@ -395,6 +395,8 @@ $router->post('/api/ai/generar-oa-adaptado', [AiController::class, 'generarOaAda
 $router->post('/api/ai-openrouter/generar-paci-completo', [OpenRouterAiController::class, 'generarPaciCompleto'], true);
 $router->post('/api/ai-openrouter/generar-oa-adaptado', [OpenRouterAiController::class, 'generarOaAdaptado'], true);
 $router->post('/api/ai-openrouter/autocompletar-paci-desde-documento', [OpenRouterAiController::class, 'autocompletarPaciDesdeDocumento'], true);
+$router->post('/api/ai-openrouter/redactar-texto', [OpenRouterAiController::class, 'redactarTexto'], true);
+$router->post('/api/ai-openrouter/asistente-paci', [OpenRouterAiController::class, 'asistentePaciChat'], true);
 
 // -----------------------------------------------------------
 // Rutas protegidas: IA Admin (configuración del motor)

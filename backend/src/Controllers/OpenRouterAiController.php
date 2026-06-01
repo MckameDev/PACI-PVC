@@ -6,7 +6,11 @@ namespace App\Controllers;
 
 use App\Services\OpenRouterAiService;
 use App\Services\PaciStructuredDocumentParserService;
+use App\Middleware\AuthMiddleware;
+use App\Config\Database;
 use App\Helpers\Response;
+use PDO;
+use Throwable;
 
 class OpenRouterAiController
 {
@@ -147,5 +151,76 @@ class OpenRouterAiController
             'resultado_ia' => $result,
             'mensaje' => 'Si deseas una evaluacion mas completa, puedes aportar mas detalle por seccion (diagnostico, barreras, fortalezas, indicadores y habilidades) y volver a generar.',
         ]);
+    }
+
+    /**
+     * POST /api/ai-openrouter/redactar-texto
+     * Human-in-the-Loop: recibe notas breves + flag applyPAEC y devuelve JSON estructurado.
+     */
+    public function redactarTexto(array $params): void
+    {
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+
+        $notas = trim((string) ($data['notas'] ?? ''));
+        if ($notas === '') {
+            Response::validationError(['notas' => 'Las notas breves son obligatorias.']);
+        }
+
+        // Verifica en BD si el usuario tiene PAEC habilitado (no confiar sólo en el flag del cliente)
+        $userHasPaec = $this->userHasPaecPermission();
+
+        try {
+            $result = $this->service->redactarTextoTecnico($data, $userHasPaec);
+        } catch (Throwable $e) {
+            Response::error('Error redactando texto IA: ' . $e->getMessage(), 500);
+            return;
+        }
+
+        if (isset($result['error'])) {
+            Response::error($result['error'], 502);
+            return;
+        }
+
+        Response::success($result);
+    }
+
+    /**
+     * POST /api/ai-openrouter/asistente-paci
+     * Asistente conversacional para el formulario PACI: consejos + redacción + preguntas.
+     */
+    public function asistentePaciChat(array $params): void
+    {
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        $userHasPaec = $this->userHasPaecPermission();
+
+        try {
+            $result = $this->service->asistentePaciChat($data, $userHasPaec);
+        } catch (Throwable $e) {
+            Response::error('Error en asistente IA: ' . $e->getMessage(), 500);
+            return;
+        }
+
+        if (isset($result['error'])) {
+            Response::error($result['error'], 502);
+            return;
+        }
+
+        Response::success($result);
+    }
+
+    private function userHasPaecPermission(): bool
+    {
+        $userId = AuthMiddleware::getUserId();
+        if (!$userId) { return false; }
+
+        try {
+            $db = Database::getInstance();
+            $stmt = $db->prepare('SELECT paec_habilitado FROM users WHERE id = :id LIMIT 1');
+            $stmt->execute([':id' => $userId]);
+            $row = $stmt->fetch(PDO::FETCH_ASSOC);
+            return !empty($row) && (int) ($row['paec_habilitado'] ?? 0) === 1;
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 }

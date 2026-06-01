@@ -865,4 +865,332 @@ USER;
 
         return implode(' | ', $rows);
     }
+
+    /**
+     * Redacta texto técnico Human-in-the-Loop a partir de notas breves del profesional.
+     * Devuelve JSON estricto: { texto_generado, confianza_datos, sugerencia_mejora }.
+     */
+    public function redactarTextoTecnico(array $data, bool $userHasPaecPermission): array
+    {
+        if (empty($this->apiKey)) {
+            return [
+                'error' => 'API key de OpenRouter no configurada. Defina OPENROUTER_API_KEY en .env',
+            ];
+        }
+
+        $notas        = trim((string) ($data['notas'] ?? ''));
+        $campo        = trim((string) ($data['campo'] ?? 'texto_paci'));
+        $contexto     = is_array($data['contexto'] ?? null) ? $data['contexto'] : [];
+        // PAEC: sólo aplica si el frontend lo pide Y el usuario tiene el permiso en BD
+        $applyPaec    = !empty($data['applyPAEC']) && $userHasPaecPermission;
+        $tono         = trim((string) ($data['tono'] ?? 'técnico-pedagógico'));
+        $maxPalabras  = (int) ($data['max_palabras'] ?? 220);
+        if ($maxPalabras < 40)  { $maxPalabras = 40; }
+        if ($maxPalabras > 600) { $maxPalabras = 600; }
+
+        $systemBase = <<<SYS
+Eres un Consultor Pedagógico Senior de AulaInclusiva.cl especializado en redacción técnica de PACI (Plan de Adecuación Curricular Individual) bajo Decretos 83/2015, 67/2018 y Ley TEA 21.545.
+
+OBJETIVO: A partir de NOTAS BREVES del profesional, redactar el texto final técnico-pedagógico para el campo "{$campo}" del formulario PACI, en español de Chile, claro, preciso, respetuoso del estudiante, sin estigmatizar, alineado al enfoque DUA.
+
+REGLAS:
+- No inventes datos clínicos, nombres, fechas, diagnósticos ni cifras que no estén en las notas/contexto.
+- Si faltan datos esenciales, indica vacíos en "sugerencia_mejora", no rellenes con suposiciones.
+- Usa terminología MINEDUC vigente (barreras, fortalezas, acceso curricular, adecuaciones, indicadores, metas).
+- Máximo {$maxPalabras} palabras en "texto_generado". Tono: {$tono}.
+- Devuelve EXCLUSIVAMENTE un objeto JSON válido con EXACTAMENTE estas tres claves:
+  {
+    "texto_generado": "<string HTML simple permitido: <p>, <ul>, <li>, <strong>, <em>>",
+    "confianza_datos": <number 0..1 que refleje qué tan completas eran las notas>,
+    "sugerencia_mejora": "<string con datos faltantes que mejorarían la redacción>"
+  }
+- Nada fuera del JSON. Sin Markdown, sin comentarios.
+SYS;
+
+        // PAEC: inyección dinámica condicional del bloque de criterios PAEC en el system prompt
+        $paecBlock = '';
+        if ($applyPaec) {
+            $paecBlock = <<<PAEC
+
+CRITERIOS PAEC (Plan de Acompañamiento Emocional y Conductual) — ACTIVADO:
+- Alinea la redacción con los lineamientos del PAEC: identifica activadores/gatillantes, estrategias de regulación emocional y protocolo de desregulación cuando sean pertinentes al campo.
+- Refleja enfoque socioemocional (autorregulación, co-regulación, vínculo, anticipación) compatible con NEE permanentes (TEA, TDAH, salud mental).
+- Sugiere indicadores observables del estado emocional/conductual y apoyos del entorno (familia, dupla psicosocial, profesional PIE).
+- Si el campo no es PAEC directo, integra criterios PAEC de forma transversal sin saturar el texto.
+PAEC;
+        }
+
+        $systemPrompt = $systemBase . $paecBlock;
+
+        $contextoStr = $this->stringifyDocumentContext($contexto);
+
+        $userPrompt = <<<USER
+CAMPO OBJETIVO: {$campo}
+APLICA_PAEC: {$this->boolLabel($applyPaec)}
+
+NOTAS BREVES DEL PROFESIONAL (fuente primaria, no contradecir):
+"""
+{$notas}
+"""
+
+CONTEXTO DEL FORMULARIO (úsalo sólo como apoyo, no inventes):
+{$contextoStr}
+
+Redacta ahora el JSON final.
+USER;
+
+        $messages = [
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user',   'content' => $userPrompt],
+        ];
+
+        $raw = $this->callChat($messages, 0.45, min(1200, $maxPalabras * 6));
+        if ($raw === null) {
+            return ['error' => 'No se pudo contactar al proveedor de IA.'];
+        }
+
+        // Parseo robusto: try/catch + fallback de extracción de JSON embebido
+        try {
+            $parsed = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (Throwable $e) {
+            $parsed = $this->extractJsonObject($raw);
+            if ($parsed === null) {
+                return [
+                    'error'        => 'Formato de respuesta IA inválido.',
+                    'detalle'      => $e->getMessage(),
+                    'raw_content'  => $raw,
+                ];
+            }
+        }
+
+        $texto = isset($parsed['texto_generado']) ? (string) $parsed['texto_generado'] : '';
+        $conf  = isset($parsed['confianza_datos']) ? (float) $parsed['confianza_datos'] : 0.0;
+        $sug   = isset($parsed['sugerencia_mejora']) ? (string) $parsed['sugerencia_mejora'] : '';
+
+        if ($texto === '') {
+            return [
+                'error'       => 'La IA no devolvió texto_generado.',
+                'raw_content' => $parsed,
+            ];
+        }
+
+        return [
+            'texto_generado'    => $texto,
+            'confianza_datos'   => max(0.0, min(1.0, $conf)),
+            'sugerencia_mejora' => $sug,
+            'paec_aplicado'     => $applyPaec,
+        ];
+    }
+
+    private function boolLabel(bool $value): string
+    {
+        return $value ? 'sí' : 'no';
+    }
+
+    private function extractJsonObject(string $raw): ?array
+    {
+        $start = strpos($raw, '{');
+        $end   = strrpos($raw, '}');
+        if ($start === false || $end === false || $end <= $start) {
+            return null;
+        }
+        $slice = substr($raw, $start, $end - $start + 1);
+        $decoded = json_decode($slice, true);
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    private function callChat(array $messages, float $temperature, int $maxTokens): ?string
+    {
+        $payload = [
+            'model'           => $this->model,
+            'messages'        => $messages,
+            'temperature'     => $temperature,
+            'max_tokens'      => $maxTokens,
+            'response_format' => ['type' => 'json_object'],
+        ];
+
+        $headers = [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $this->apiKey,
+        ];
+        if (!empty($this->referer))  { $headers[] = 'HTTP-Referer: ' . $this->referer; }
+        if (!empty($this->appTitle)) { $headers[] = 'X-Title: ' . $this->appTitle; }
+
+        $ch = curl_init(rtrim($this->baseUrl, '/') . '/chat/completions');
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => $headers,
+            CURLOPT_POSTFIELDS     => json_encode($payload),
+            CURLOPT_TIMEOUT        => 45,
+            CURLOPT_CONNECTTIMEOUT => 10,
+        ]);
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($response === false || $httpCode !== 200) {
+            return null;
+        }
+
+        $decoded = json_decode((string) $response, true);
+        $content = $decoded['choices'][0]['message']['content'] ?? null;
+        return is_string($content) ? $content : null;
+    }
+
+    /**
+     * Asistente conversacional PACI: aconseja al usuario, responde dudas y/o redacta
+     * texto técnico para un campo, usando contexto del formulario + base de conocimiento.
+     * Devuelve JSON estricto:
+     *   { tipo, mensaje, texto_generado?, campo_destino?, confianza_datos?,
+     *     sugerencia_mejora?, siguiente_paso?, acciones_sugeridas?[] }
+     */
+    public function asistentePaciChat(array $data, bool $userHasPaecPermission): array
+    {
+        if (empty($this->apiKey)) {
+            return ['error' => 'API key de OpenRouter no configurada. Defina OPENROUTER_API_KEY en .env'];
+        }
+
+        $history       = is_array($data['messages'] ?? null) ? $data['messages'] : [];
+        $contexto      = is_array($data['contexto'] ?? null) ? $data['contexto'] : [];
+        // PAEC: doble verificación (flag cliente + permiso BD)
+        $applyPaec     = !empty($data['applyPAEC']) && $userHasPaecPermission;
+        $campoObjetivo = trim((string) ($data['campo_objetivo'] ?? ''));
+        $intencion     = trim((string) ($data['intencion'] ?? '')); // 'consejo' | 'redaccion' | 'pregunta' | ''
+        $useKnowledge  = !array_key_exists('use_knowledge', $data) || !empty($data['use_knowledge']);
+        $maxPalabras   = max(40, min(600, (int) ($data['max_palabras'] ?? 220)));
+
+        $lastUser = '';
+        foreach (array_reverse($history) as $m) {
+            if (($m['role'] ?? '') === 'user') { $lastUser = (string) ($m['content'] ?? ''); break; }
+        }
+
+        $knowledgeContext = '- (base de conocimiento desactivada)';
+        if ($useKnowledge && $this->knowledgeService !== null) {
+            try {
+                $query = trim($lastUser . ' ' . $campoObjetivo . ' ' . $this->buildKnowledgeQuery($contexto));
+                if ($query !== '') {
+                    $knowledgeContext = $this->knowledgeService->buildContextForPrompt($query, [], 3500, 5) ?: '- Sin fragmentos relevantes en libros cargados.';
+                }
+            } catch (Throwable $e) {
+                $knowledgeContext = '- Error consultando base de conocimiento: ' . $e->getMessage();
+            }
+        }
+
+        $contextoStr = $this->stringifyDocumentContext($contexto);
+
+        $systemBase = <<<SYS
+Eres el Consultor Pedagógico Senior interactivo de AulaInclusiva.cl para el formulario PACI (Decretos 83/2015, 67/2018 y Ley TEA 21.545). Asistes al profesional Human-in-the-Loop en tiempo real mientras llena el formulario.
+
+TU MISIÓN (en cada turno):
+1. Analizar el estado del formulario y el último mensaje del usuario.
+2. Decidir si corresponde:
+   - "consejo": guiar el siguiente paso, advertir vacíos críticos, sugerir cómo proseguir.
+   - "redaccion": redactar el texto técnico final de un campo cuando el usuario lo pida o cuando aporte notas suficientes.
+   - "pregunta": pedir UN dato clave faltante para avanzar (sólo uno por turno).
+3. Apoyarte SIEMPRE en la base de conocimiento (libros/documentos cargados) y en el contexto del formulario. No inventes datos clínicos, nombres, diagnósticos ni cifras.
+4. Tono cálido, técnico-pedagógico, español de Chile, respetuoso del estudiante, sin estigmatizar, enfoque DUA.
+
+REGLAS DE SALIDA (ESTRICTAS):
+Devuelve EXCLUSIVAMENTE un objeto JSON válido con esta forma:
+{
+  "tipo": "consejo" | "redaccion" | "pregunta",
+  "mensaje": "<texto breve para el chat. HTML simple permitido: <p>, <ul>, <li>, <strong>, <em>, <br>>",
+  "texto_generado": "<si tipo=redaccion: texto final para el campo; si no, string vacío>",
+  "campo_destino": "<si tipo=redaccion: clave del campo del formulario; si no, string vacío>",
+  "confianza_datos": <number 0..1>,
+  "sugerencia_mejora": "<datos que mejorarían tu respuesta, en una frase>",
+  "siguiente_paso": "<sugerencia concreta de qué hacer ahora, una frase>",
+  "acciones_sugeridas": [
+    { "label": "<texto botón>", "intent": "consejo|redaccion|pregunta", "campo": "<opcional clave de campo>" }
+  ]
+}
+- Máximo {$maxPalabras} palabras en "texto_generado".
+- Si faltan datos esenciales para redactar, devuelve tipo="pregunta" en vez de inventar.
+- Nada fuera del JSON. Sin Markdown, sin comentarios.
+SYS;
+
+        // PAEC: inyección dinámica condicional del bloque de criterios PAEC
+        if ($applyPaec) {
+            $systemBase .= <<<PAEC
+
+CRITERIOS PAEC ACTIVADOS:
+- Alinea consejos y redacción con el Plan de Acompañamiento Emocional y Conductual: activadores/gatillantes, estrategias de regulación, protocolo de desregulación.
+- Refleja enfoque socioemocional (autorregulación, co-regulación, anticipación, vínculo) coherente con NEE permanentes (TEA, TDAH, salud mental).
+PAEC;
+        }
+
+        $intencionHint = $intencion !== '' ? "\nINTENCIÓN EXPLÍCITA DEL USUARIO EN ESTE TURNO: {$intencion}" : '';
+        $campoHint     = $campoObjetivo !== '' ? "\nCAMPO OBJETIVO SI PROCEDE REDACCIÓN: {$campoObjetivo}" : '';
+
+        $contextMessage = <<<CTX
+CONTEXTO DEL FORMULARIO PACI (estado actual):
+{$contextoStr}
+
+BASE DE CONOCIMIENTO (documentos/libros cargados que avalan la asistencia):
+{$knowledgeContext}
+{$intencionHint}{$campoHint}
+
+Responde ahora con el JSON definido en las reglas.
+CTX;
+
+        // Construye mensajes: system + contexto (system) + historial sanitizado
+        $messages = [
+            ['role' => 'system', 'content' => $systemBase],
+            ['role' => 'system', 'content' => $contextMessage],
+        ];
+        foreach ($history as $m) {
+            $role = ($m['role'] ?? '') === 'assistant' ? 'assistant' : 'user';
+            $content = trim((string) ($m['content'] ?? ''));
+            if ($content === '') { continue; }
+            $messages[] = ['role' => $role, 'content' => $content];
+        }
+        if (empty($lastUser)) {
+            $messages[] = ['role' => 'user', 'content' => '¿Cómo sigo con el PACI desde el estado actual? Dame el próximo paso concreto.'];
+        }
+
+        $raw = $this->callChat($messages, 0.5, 1400);
+        if ($raw === null) {
+            return ['error' => 'No se pudo contactar al proveedor de IA.'];
+        }
+
+        // Parseo robusto del JSON devuelto por la IA
+        try {
+            $parsed = json_decode($raw, true, 512, JSON_THROW_ON_ERROR);
+        } catch (Throwable $e) {
+            $parsed = $this->extractJsonObject($raw);
+            if ($parsed === null) {
+                return [
+                    'error'       => 'Formato de respuesta IA inválido.',
+                    'detalle'     => $e->getMessage(),
+                    'raw_content' => $raw,
+                ];
+            }
+        }
+
+        $tipo = in_array(($parsed['tipo'] ?? ''), ['consejo', 'redaccion', 'pregunta'], true) ? $parsed['tipo'] : 'consejo';
+        $acciones = [];
+        if (is_array($parsed['acciones_sugeridas'] ?? null)) {
+            foreach ($parsed['acciones_sugeridas'] as $a) {
+                if (!is_array($a)) { continue; }
+                $acciones[] = [
+                    'label'  => (string) ($a['label'] ?? ''),
+                    'intent' => in_array(($a['intent'] ?? ''), ['consejo', 'redaccion', 'pregunta'], true) ? $a['intent'] : 'consejo',
+                    'campo'  => (string) ($a['campo'] ?? ''),
+                ];
+            }
+        }
+
+        return [
+            'tipo'              => $tipo,
+            'mensaje'           => (string) ($parsed['mensaje'] ?? ''),
+            'texto_generado'    => (string) ($parsed['texto_generado'] ?? ''),
+            'campo_destino'     => (string) ($parsed['campo_destino'] ?? $campoObjetivo),
+            'confianza_datos'   => max(0.0, min(1.0, (float) ($parsed['confianza_datos'] ?? 0))),
+            'sugerencia_mejora' => (string) ($parsed['sugerencia_mejora'] ?? ''),
+            'siguiente_paso'    => (string) ($parsed['siguiente_paso'] ?? ''),
+            'acciones_sugeridas'=> $acciones,
+            'paec_aplicado'     => $applyPaec,
+        ];
+    }
 }
